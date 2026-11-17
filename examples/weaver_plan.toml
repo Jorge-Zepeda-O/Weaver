@@ -1,0 +1,82 @@
+# The plan that built weaver — and its first test input.
+#
+# Schema
+#   [plan]        title (required), caption
+#   [[node]]      id (required, [A-Za-z0-9_.-]+), title (required),
+#                 kind = atom | merge          (default atom)
+#                 status = todo | doing | done | blocked   (default todo)
+#                 owner, notes                 (free text)
+#                 deps = [...]                 build seams   (static dependency)
+#                 runtime_deps = [...]         runtime seams (dynamic dependency)
+
+[plan]
+title = "weaver — practice run"
+caption = "One plan file, three views. A0 is the shared contract and merges first; the A2→A3 chain runs in a subagent worktree in parallel with A1→A4 and A5 in the main session; M1 is the only merge event."
+
+[[node]]
+id = "A0"
+title = "Data contract: Plan model + TOML schema"
+status = "done"
+owner = "main"
+notes = """
+The contract every other atom builds against: Plan, Node, Dep, Edge in weaver/model.py, plus this file as the schema example.
+Merged first, so the parallel branches share no other file.
+"""
+
+[[node]]
+id = "A1"
+title = "Loader + validator"
+status = "done"
+owner = "main"
+deps = ["A0"]
+notes = """
+load_plan / parse_plan. Reports every error in one run: unknown keys, bad ids, kinds, statuses, unknown or duplicate deps, self-deps, cycles (with the path).
+"""
+
+[[node]]
+id = "A2"
+title = "Graphviz export: .dot + SVG"
+owner = "subagent"
+deps = ["A0"]
+notes = """
+Shape by kind (atom vs merge), line style by seam (build solid, runtime dashed), fill by status.
+Contract with A3 and A5: every SVG node group carries id="node-<id>".
+"""
+
+[[node]]
+id = "A3"
+title = "HTML view: zoom, pan, click → modal"
+owner = "subagent"
+deps = ["A0", "A2"]
+notes = """
+One self-contained file, no CDN. Node data travels as escaped JSON; the modal fills via textContent only, never innerHTML.
+"""
+
+[[node]]
+id = "A4"
+title = "Markdown table export"
+owner = "main"
+deps = ["A1"]
+notes = "The view GitHub can render. Pipes and newlines in cells are escaped."
+
+[[node]]
+id = "A5"
+title = "PDF view: graph + caption + field notes"
+owner = "main"
+deps = ["A0"]
+runtime_deps = ["A2"]
+notes = """
+WeasyPrint, no JavaScript: the static stand-in for the modals.
+Runtime seam on A2 because it consumes the SVG A2 produces, not A2's code.
+"""
+
+[[node]]
+id = "M1"
+title = "CLI build + end-to-end test + push"
+kind = "merge"
+owner = "main"
+deps = ["A1", "A3", "A4", "A5"]
+notes = """
+python -m weaver build PLAN.toml -o out/ → PLAN.html, PLAN.md, PLAN.pdf, plan.svg.
+The end-to-end test is the oracle for the merge.
+"""
