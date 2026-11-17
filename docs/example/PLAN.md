@@ -25,33 +25,68 @@ One plan file, three views. A0 is the shared contract and lands first; the A2→
 
 ### A0: Data contract: Plan model + TOML schema
 
+- **Status**: ✓ done
+- **Group**: main
+- **Dimensions**: ↕P ↔F ⤓M
+- **Verify**: tests/test_load.py
+
 The contract every other atom builds against: Plan, Node, Dep, Edge in weaver/model.py, plus this file as the schema example.
 Lands first, so the parallel strands share no other file.
 
 ### A1: Loader + validator
 
+- **Status**: ✓ done
+- **Group**: main
+- **Dimensions**: ↕L ↔N ⤓M
+- **Verify**: tests/test_load.py
+
 load_plan / parse_plan. Reports every error in one run: unknown keys, bad ids, kinds, statuses and codes, unknown or duplicate deps, self-deps, cycles (with the path), a missing or unknown schema version.
 
 ### A2: Graphviz export: .dot + SVG
+
+- **Status**: ✓ done
+- **Group**: graph
+- **Dimensions**: ↕L ↔F ⤓M
+- **Verify**: tests/test_dot.py
 
 Shape by kind (atom vs merge), line style by seam (build solid, runtime dashed), fill by status, lanes by group, border colour by scope and border weight by complexity.
 Contract with A3 and A5: every SVG node group carries id="node-<id>".
 
 ### A3: HTML view: zoom, pan, pinch, click → modal
 
+- **Status**: ✓ done
+- **Group**: graph
+- **Dimensions**: ↕L ↔F ⤓H
+- **Verify**: tests/test_html.py, tests/test_gestures.py
+
 One self-contained file, no CDN. Node data travels as escaped JSON; the modal fills via textContent only, never innerHTML. A Content-Security-Policy admits the one script and the one style block by hash.
 Gesture handling is a DOM-free core, tested under Node.
 
 ### A4: Markdown table export
 
+- **Status**: ✓ done
+- **Group**: main
+- **Dimensions**: ↕I ↔1 ⤓E
+- **Verify**: tests/test_views_md_pdf.py
+
 The view GitHub can render. Pipes and newlines in cells are escaped.
 
 ### A5: PDF view: graph + caption + field notes
+
+- **Status**: ✓ done
+- **Group**: main
+- **Dimensions**: ↕I ↔1 ⤓E
+- **Verify**: tests/test_views_md_pdf.py
 
 WeasyPrint, no JavaScript: the static stand-in for the modals.
 Runtime seam on A2 because it consumes the SVG A2 produces, not A2's code.
 
 ### M1: CLI build + end-to-end test
+
+- **Status**: ✓ done
+- **Group**: main
+- **Dimensions**: ↕P ↔F ⤓E
+- **Verify**: tests/test_cli.py
 
 python -m weaver build PLAN.toml -o out/ → PLAN.html, PLAN.md, PLAN.pdf, plan.svg.
 The end-to-end test is the oracle for the merge.

@@ -45,7 +45,16 @@ class TestMarkdown(unittest.TestCase):
         self.assertTrue(self.rows[0].endswith("| — |"))
 
     def test_notes_keep_their_line_breaks(self):
-        self.assertIn("### a: Left | side\n\nfirst line\nsecond line", self.md)
+        self.assertIn("\n\nfirst line\nsecond line", self.md)
+
+    def test_field_note_opens_with_a_metadata_block(self):
+        """B6: like a thread ledger entry: the facts first, then the prose."""
+        self.assertIn("### a: Left | side\n\n"
+                      "- **Status**: ○ todo\n"
+                      "- **Group**: left\n"
+                      "- **Dimensions**: ↕L ↔- ⤓M\n"
+                      "- **Verify**: tests/test_a.py\n"
+                      "\nfirst line\nsecond line", self.md)
 
     def test_nodes_without_notes_get_no_heading(self):
         self.assertNotIn("### b:", self.md)
@@ -67,7 +76,10 @@ class TestMarkdownV1(unittest.TestCase):
         self.assertIn("| — (unguarded) |", self.rows[2])
 
     def test_decisions_alone_earn_a_field_note(self):
-        self.assertIn("### m: Join\n\nDecisions: D-3, other:D-22\n", self.md)
+        self.assertIn("### m: Join\n\n"
+                      "- **Status**: ○ todo\n"
+                      "- **Verify**: — (unguarded)\n"
+                      "- **Decisions**: D-3, other:D-22\n", self.md)
 
     def test_key_explains_the_codes(self):
         for text in ["↕ scope", "I independent", "↔ amount", "S stream", "⤓ complexity",

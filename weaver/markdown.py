@@ -21,12 +21,18 @@ def to_markdown(plan: Plan) -> str:
     if described:
         lines += ["", "## Field notes"]
         for node in described:
-            lines += ["", f"### {node.id}: {node.title}"]
-            if node.decisions:
-                lines += ["", "Decisions: " + ", ".join(node.decisions)]
+            lines += ["", f"### {node.id}: {node.title}", ""] + _metadata(node)
             if node.notes.strip():
                 lines += ["", node.notes.strip()]
     return "\n".join(lines) + "\n"
+
+
+def _metadata(node: Node) -> list[str]:
+    """A field note's opening block, shaped like a thread ledger entry: the facts first."""
+    fields = [("Status", node.status_label()), ("Group", node.group),
+              ("Dimensions", node.dimension_label()), ("Verify", verify_text(node)),
+              ("Decisions", ", ".join(node.decisions))]
+    return [f"- **{name}**: {value}" for name, value in fields if value and value != "—"]
 
 
 def verify_text(node: Node) -> str:
