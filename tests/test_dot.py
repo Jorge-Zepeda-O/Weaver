@@ -54,7 +54,7 @@ class TestToDot(unittest.TestCase):
         self.assertIn(f'color="{SCOPE_COLOUR["P"]}"', statement, "scope still owns the border")
 
     def test_fill_follows_status(self):
-        cases = [("todo", "#ffffff"), ("doing", "#dbeafe"), ("done", "#dcfce7"), ("blocked", "#fee2e2")]
+        cases = [("todo", "#ffffff"), ("doing", "#bfdbfe"), ("done", "#d1fae5"), ("blocked", "#fca5a5")]
         for status, colour in cases:
             with self.subTest(status):
                 dot = to_dot(_plan({"id": "a", "title": "x", "status": status}))
@@ -125,7 +125,7 @@ class TestSchemaV1Dot(unittest.TestCase):
         self.assertIn('shape=hexagon, style="filled,dashed"', _statement(dot, "m"))
 
     def test_scope_sets_the_border_colour(self):
-        cases = [("I", "#2563eb"), ("L", "#0891b2"), ("P", "#ca8a04"), ("U", "#ea580c"),
+        cases = [("I", "#2563eb"), ("L", "#16a34a"), ("P", "#ca8a04"), ("U", "#ea580c"),
                  ("G", "#dc2626"), ("?", "#7f1d1d")]
         for code, colour in cases:
             with self.subTest(code):

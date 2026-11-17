@@ -16,21 +16,22 @@ import shutil
 import subprocess
 import textwrap
 
-from .model import Node, Plan
+from .model import STATUSES, Node, Plan
+from .tokens import LIGHT
 
 # Titles wrap at word boundaries, so a long title grows a node down, not across.
 TITLE_WIDTH = 28
 
-_FILL = {"todo": "#ffffff", "doing": "#dbeafe", "done": "#dcfce7", "blocked": "#fee2e2"}
+# Colours come from the tokens (B0), so the standalone SVG and the PDF match the page.
+_FILL = {status: LIGHT[f"status-{status}"] for status in STATUSES}
 _SHAPE = {"atom": ("box", "rounded,filled"), "merge": ("hexagon", "filled"),
           "release": ("octagon", "filled")}
 # A release's text is purple; its border stays scope's (D-15). Shape marks it too.
-RELEASE_COLOUR = "#7e22ce"
+RELEASE_COLOUR = LIGHT["release"]
 # Heat scale, cool to hot; "?" ranks worst, so it sits past global.
-SCOPE_COLOUR = {"I": "#2563eb", "L": "#0891b2", "P": "#ca8a04", "U": "#ea580c",
-                "G": "#dc2626", "?": "#7f1d1d"}
+SCOPE_COLOUR = {code: LIGHT[f"scope-{'unknown' if code == '?' else code}"] for code in "ILPUG?"}
 COMPLEXITY_WIDTH = {"T": "1", "E": "1.5", "M": "2.5", "H": "3.5", "N": "5", "?": "5"}
-LANE_COLOUR = "#94a3b8"
+LANE_COLOUR = LIGHT["lane"]
 _PROLOG = re.compile(r"<\?xml[^>]*\?>|<!DOCTYPE[^>]*>")
 # Graphviz 2.43 writes '-' in attribute values as '&#45;'; ids and classes are restored
 # to their literal form so the contract holds for text matching as well as for parsers.
@@ -87,7 +88,7 @@ def to_dot(plan: Plan) -> str:
         lines += [f'  subgraph "cluster_{index}" {{',
                   f"    label={_quote(group)};",
                   '    class="lane";',
-                  f'    style="rounded,dashed"; color="{LANE_COLOUR}"; fontcolor="#475569";']
+                  f'    style="rounded,dashed"; color="{LANE_COLOUR}"; fontcolor="{LIGHT["lane-text"]}";']
         lines += [_node_statement(n, "    ") for n in plan.nodes if n.group == group]
         lines.append("  }")
     lines += [_node_statement(n) for n in plan.nodes if not n.group]

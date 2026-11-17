@@ -16,54 +16,53 @@ from typing import Any
 
 from .dot import _FILL, COMPLEXITY_WIDTH, RELEASE_COLOUR, SCOPE_COLOUR
 from .model import DIMENSIONS, Plan
+from .tokens import LIGHT, css_variables
 
 _SVG_XMLNS = re.compile(r'\s+xmlns(?::\w+)?="[^"]*"')
 
-_STYLE = """
-:root { color-scheme: light dark; --bg: #f8fafc; --fg: #0f172a; --muted: #475569;
-  --panel: #ffffff; --border: #cbd5e1; --accent: #2563eb; --backdrop: rgb(15 23 42 / .45); }
+_STYLE = css_variables() + """
+:root { color-scheme: light dark; --wv-backdrop: rgb(15 23 42 / .45); }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #0b1120; --fg: #e2e8f0; --muted: #94a3b8; --panel: #1e293b;
-    --border: #334155; --accent: #60a5fa; --backdrop: rgb(0 0 0 / .6); }
+  :root { --wv-backdrop: rgb(0 0 0 / .6); }
 }
 * { box-sizing: border-box; }
-body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg);
+body { margin: 0; padding: 16px; background: var(--wv-bg); color: var(--wv-fg);
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
-.caption { color: var(--muted); margin: 0 0 1rem; max-width: 70ch; }
+.caption { color: var(--wv-muted); margin: 0 0 1rem; max-width: 70ch; }
 .toolbar { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
-.toolbar span { color: var(--muted); font-size: .85rem; }
-button { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--border);
+.toolbar span { color: var(--wv-muted); font-size: .85rem; }
+button { font: inherit; color: var(--wv-fg); background: var(--wv-panel); border: 1px solid var(--wv-border);
   border-radius: 6px; padding: .3rem .8rem; cursor: pointer; }
-button:hover { border-color: var(--accent); }
-#viewport { height: 70vh; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
-  background: #ffffff; cursor: grab; touch-action: none; user-select: none; }
+button:hover { border-color: var(--wv-accent); }
+#viewport { height: 70vh; border: 1px solid var(--wv-border); border-radius: 8px; overflow: hidden;
+  background: var(--wv-canvas); cursor: grab; touch-action: none; user-select: none; }
 #viewport.dragging { cursor: grabbing; }
 #viewport svg { display: block; width: 100%; height: 100%; }
 #viewport g.node { cursor: pointer; }
-#viewport g.node:hover polygon, #viewport g.node:hover path { stroke: var(--accent); stroke-width: 2; }
+#viewport g.node:hover polygon, #viewport g.node:hover path { stroke: var(--wv-accent); stroke-width: 2; }
 #viewport g.node:focus { outline: none; }
-#viewport g.node:focus-visible polygon, #viewport g.node:focus-visible path { stroke: #2563eb; stroke-width: 3; }
+#viewport g.node:focus-visible polygon, #viewport g.node:focus-visible path { stroke: var(--wv-focus); stroke-width: 3; }
 dialog { width: min(36rem, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 1.25rem;
-  color: var(--fg); background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
-dialog::backdrop { background: var(--backdrop); }
+  color: var(--wv-fg); background: var(--wv-panel); border: 1px solid var(--wv-border); border-radius: 10px; }
+dialog::backdrop { background: var(--wv-backdrop); }
 dialog header { display: flex; justify-content: space-between; align-items: start; gap: 1rem; }
 dialog h2 { margin: 0; font-size: 1.15rem; }
-dialog .node-id { color: var(--muted); font-family: ui-monospace, monospace; font-size: .9rem; }
+dialog .node-id { color: var(--wv-muted); font-family: ui-monospace, monospace; font-size: .9rem; }
 dialog dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1rem; margin: 1rem 0; }
-dialog dt { color: var(--muted); }
+dialog dt { color: var(--wv-muted); }
 dialog dd { margin: 0; }
 dialog ul { margin: 0; padding-left: 1.1rem; }
-.seam { color: var(--muted); font-size: .85rem; }
+.seam { color: var(--wv-muted); font-size: .85rem; }
 .goal { margin: 0 0 .5rem; max-width: 70ch; }
-#legend { margin-top: .75rem; color: var(--muted); font-size: .85rem; }
-#legend summary { cursor: pointer; color: var(--fg); }
+#legend { margin-top: .75rem; color: var(--wv-muted); font-size: .85rem; }
+#legend summary { cursor: pointer; color: var(--wv-fg); }
 #legend dl { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1rem; margin: .5rem 0 0; }
-#legend dt { color: var(--fg); }
+#legend dt { color: var(--wv-fg); }
 #legend dd { margin: 0; display: flex; flex-wrap: wrap; gap: .25rem .9rem; }
 #legend svg { vertical-align: middle; margin-right: .25rem; }
 .notes { white-space: pre-wrap; margin: 0; padding: .75rem; border-radius: 6px;
-  background: var(--bg); border: 1px solid var(--border); }
+  background: var(--wv-bg); border: 1px solid var(--wv-border); }
 """
 
 # DOM-free gesture core: pointer events in, pan/zoom calls and a click verdict out.
@@ -288,7 +287,7 @@ def plan_data(plan: Plan) -> dict[str, Any]:
     }}
 
 
-def _swatch(shape: str = "box", fill: str = "#ffffff", stroke: str = "#334155",
+def _swatch(shape: str = "box", fill: str = LIGHT["canvas"], stroke: str = LIGHT["ink"],
             width: str = "1", dashed: bool = False) -> str:
     """A small inline SVG key. Presentation attributes only: the CSP refuses style=""."""
     dash = ' stroke-dasharray="3 2"' if dashed else ""

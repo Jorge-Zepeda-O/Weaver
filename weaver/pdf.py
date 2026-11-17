@@ -11,20 +11,21 @@ from html import escape
 from pathlib import Path
 
 from .model import Plan, dimension_key
+from .tokens import css_variables
 
-_CSS = """
+_CSS = css_variables(dark=False) + """
 @page { size: A4 landscape; margin: 14mm; }
-body { font-family: sans-serif; font-size: 10pt; color: #111; }
+body { font-family: sans-serif; font-size: 10pt; color: var(--wv-print-ink); }
 h1 { font-size: 16pt; margin: 0 0 4mm; }
 .graph { text-align: center; }
 .graph img { max-width: 100%; max-height: 140mm; }
 .goal { margin: 0 0 3mm; }
 .caption { font-style: italic; margin: 3mm 0 0; }
-.key { color: #555; font-size: 8.5pt; margin: 2mm 0 0; }
+.key { color: var(--wv-print-muted); font-size: 8.5pt; margin: 2mm 0 0; }
 .notes { page-break-before: always; }
 .note { margin: 0 0 5mm; page-break-inside: avoid; }
 .note h2 { font-size: 11pt; margin: 0 0 1mm; }
-.meta { color: #555; margin: 0 0 1mm; }
+.meta { color: var(--wv-print-muted); margin: 0 0 1mm; }
 .body { white-space: pre-wrap; margin: 0; }
 """
 
