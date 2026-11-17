@@ -40,12 +40,12 @@ class TestToDot(unittest.TestCase):
             with self.subTest(node_id):
                 self.assertIn(expected, _statement(dot, node_id))
 
-    def test_release_is_a_purple_double_octagon(self):
+    def test_release_is_an_octagon_with_purple_text(self):
         """D-15: shape and colour both mark a release, so neither is alone."""
         plan = parse_plan({"plan": {"schema": 2, "title": "T"}, "node": [
             {"id": "r", "title": "v1", "kind": "release", "verify": "tag", "scope": "P"}]})
         statement = _statement(to_dot(plan), "r")
-        self.assertIn("shape=doubleoctagon, style=filled", statement)
+        self.assertIn("shape=octagon, style=filled", statement)
         self.assertIn(f'fontcolor="{RELEASE_COLOUR}"', statement)
         self.assertIn(f'color="{SCOPE_COLOUR["P"]}"', statement, "scope still owns the border")
 

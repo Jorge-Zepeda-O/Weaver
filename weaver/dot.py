@@ -23,7 +23,7 @@ TITLE_WIDTH = 28
 
 _FILL = {"todo": "#ffffff", "doing": "#dbeafe", "done": "#dcfce7", "blocked": "#fee2e2"}
 _SHAPE = {"atom": ("box", "rounded,filled"), "merge": ("hexagon", "filled"),
-          "release": ("doubleoctagon", "filled")}
+          "release": ("octagon", "filled")}
 # A release's text is purple; its border stays scope's (D-15). Shape marks it too.
 RELEASE_COLOUR = "#7e22ce"
 # Heat scale, cool to hot; "?" ranks worst, so it sits past global.

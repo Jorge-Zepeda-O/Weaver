@@ -83,7 +83,7 @@ Unknown keys are errors, so a typo fails loudly instead of being ignored.
 |---|---|---|
 | `id` | required | Letters, digits, `_`, `.`, `-`. Unique within the plan. |
 | `title` | required | Non-empty. |
-| `kind` | `atom` | `atom`, `merge`, or `release` (schema 2): a merge that marks where a version was cut, drawn as a double octagon with purple text. |
+| `kind` | `atom` | `atom`, `merge`, or `release` (schema 2): a merge that marks where a version was cut, drawn as an octagon with purple text. |
 | `status` | `todo` | `todo`, `doing`, `done` or `blocked`. Drawn as the fill colour. |
 | `group` | optional | The parallel strand the node runs in. Drawn as a lane. |
 | `deps` | optional | Build seams: ids of nodes this one statically depends on. |

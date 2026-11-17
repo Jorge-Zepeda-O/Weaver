@@ -297,9 +297,7 @@ def _swatch(shape: str = "box", fill: str = "#ffffff", stroke: str = "#334155",
         "box": f'<rect x="2" y="2" width="18" height="12" rx="3" {paint}/>',
         "hexagon": f'<polygon points="2,8 6,2 16,2 20,8 16,14 6,14" {paint}/>',
         "line": f'<line x1="1" y1="8" x2="21" y2="8" stroke="{stroke}" stroke-width="1.5"{dash}/>',
-        "doubleoctagon": f'<polygon points="7,1 15,1 21,5 21,11 15,15 7,15 1,11 1,5" {paint}/>'
-                         f'<polygon points="8,3 14,3 19,6 19,10 14,13 8,13 3,10 3,6" '
-                         f'fill="none" stroke="{stroke}" stroke-width="{width}"/>',
+        "octagon": f'<polygon points="7,1 15,1 21,5 21,11 15,15 7,15 1,11 1,5" {paint}/>',
     }[shape]
     return f'<svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true">{body}</svg>'
 
@@ -312,7 +310,7 @@ def _legend() -> str:
         ("Status (fill)", items([(_swatch(fill=c), s) for s, c in _FILL.items()])),
         ("Kind (shape)", items([(_swatch(), "atom"), (_swatch("hexagon"), "merge"),
                                 (_swatch("hexagon", dashed=True), "unguarded merge (no verify)"),
-                                (_swatch("doubleoctagon", stroke=RELEASE_COLOUR), "release")])),
+                                (_swatch("octagon", stroke=RELEASE_COLOUR), "release")])),
         ("Seam (edge)", items([(_swatch("line"), "build seam"),
                                (_swatch("line", dashed=True), "runtime seam")])),
         ("Scope (border colour)", items([(_swatch(stroke=SCOPE_COLOUR[c], width="2.5"), f"{c} {n}")
