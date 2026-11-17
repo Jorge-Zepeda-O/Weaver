@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 from weaver import load_plan, parse_plan
-from weaver.dot import render_svg, to_dot
+from weaver.dot import TITLE_WIDTH, render_svg, to_dot
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "weaver_plan.toml"
 SVG_NS = "{http://www.w3.org/2000/svg}"
@@ -61,6 +61,34 @@ class TestToDot(unittest.TestCase):
     def test_label_escapes_backslash_and_quote(self):
         dot = to_dot(_plan({"id": "a", "title": 'say "hi" \\N'}))
         self.assertIn('label="a\\nsay \\"hi\\" \\\\N"', _statement(dot, "a"))
+
+    def test_long_title_wraps_at_word_boundaries(self):
+        title = "Details panel: a stats table on top, icons and colours throughout"
+        label = _statement(to_dot(_plan({"id": "a", "title": title})), "a")
+        lines = re.search(r'label="(.*?)", ', label).group(1).split("\\n")
+        self.assertGreater(len(lines), 2, "the title was not wrapped")
+        self.assertTrue(all(len(ln) <= TITLE_WIDTH for ln in lines), lines)
+        self.assertEqual(" ".join(lines[1:]), title, "wrapping lost or changed words")
+
+    def test_a_word_longer_than_the_width_is_kept_whole(self):
+        word = "x" * (TITLE_WIDTH + 5)
+        self.assertIn(f'label="a\\n{word}"', _statement(to_dot(_plan({"id": "a", "title": word})), "a"))
+
+
+class TestFindDot(unittest.TestCase):
+    def test_dot_is_looked_up_on_the_path(self):
+        ok = subprocess.CompletedProcess(args=[], returncode=0, stdout="<svg/>", stderr="")
+        with mock.patch("weaver.dot.shutil.which", return_value="/opt/gv/bin/dot"), \
+             mock.patch("weaver.dot.subprocess.run", return_value=ok) as run:
+            render_svg(_plan({"id": "a", "title": "A"}))
+        self.assertEqual(run.call_args.args[0][0], "/opt/gv/bin/dot")
+
+    def test_missing_graphviz_says_so(self):
+        with mock.patch("weaver.dot.shutil.which", return_value=None), \
+             mock.patch("weaver.dot.subprocess.run") as run:
+            with self.assertRaisesRegex(RuntimeError, "Graphviz"):
+                render_svg(_plan({"id": "a", "title": "A"}))
+        run.assert_not_called()
 
 
 def _cluster_bodies(dot: str) -> dict[str, list[str]]:

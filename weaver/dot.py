@@ -12,11 +12,14 @@ meaning alone.
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
+import textwrap
 
 from .model import Node, Plan
 
-DOT = "/usr/bin/dot"
+# Titles wrap at word boundaries, so a long title grows a node down, not across.
+TITLE_WIDTH = 28
 
 _FILL = {"todo": "#ffffff", "doing": "#dbeafe", "done": "#dcfce7", "blocked": "#fee2e2"}
 _SHAPE = {"atom": ("box", "rounded,filled"), "merge": ("hexagon", "filled")}
@@ -38,7 +41,8 @@ def _quote(text: str) -> str:
 
 
 def _node_statement(node: Node, indent: str = "  ") -> str:
-    label = _quote("\n".join(filter(None, [node.id, node.title, node.dimension_label()])))
+    title = textwrap.wrap(node.title, TITLE_WIDTH, break_long_words=False, break_on_hyphens=False)
+    label = _quote("\n".join(filter(None, [node.id, *title, node.dimension_label()])))
     shape, style = _SHAPE[node.kind]
     if node.unguarded:
         style += ",dashed"
@@ -77,7 +81,10 @@ def to_dot(plan: Plan) -> str:
 
 def render_svg(plan: Plan) -> str:
     """Run Graphviz; return SVG without XML prolog or DOCTYPE, ready to inline."""
-    result = subprocess.run([DOT, "-Tsvg"], input=to_dot(plan), capture_output=True,
+    dot = shutil.which("dot")
+    if dot is None:
+        raise RuntimeError("Graphviz is not installed: no 'dot' on the PATH (https://graphviz.org/download/)")
+    result = subprocess.run([dot, "-Tsvg"], input=to_dot(plan), capture_output=True,
                             text=True, encoding="utf-8", check=False)
     if result.returncode != 0:
         raise RuntimeError(f"dot exited with {result.returncode}: {result.stderr.strip()}")

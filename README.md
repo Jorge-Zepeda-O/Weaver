@@ -32,7 +32,7 @@ Exit codes: `0` built · `1` the plan is invalid (every problem is listed, not j
 **Requirements**
 
 - Python 3.11 or newer (for `tomllib`).
-- [Graphviz](https://graphviz.org/), with `dot` at `/usr/bin/dot`.
+- [Graphviz](https://graphviz.org/), with `dot` on the `PATH`.
 - [WeasyPrint](https://weasyprint.org/), needed only for the PDF.
 
 Tested with Python 3.12, Graphviz 2.43 and WeasyPrint 69.
