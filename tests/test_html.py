@@ -108,9 +108,12 @@ class TestSchemaV1Page(unittest.TestCase):
 
     def test_modal_has_a_slot_for_every_v1_field(self):
         page = build_html(_plan({"id": "a", "title": "x"}), "<svg></svg>")
-        for name in ["group", "scope", "amount", "complexity", "verify", "decisions"]:
+        # B5 moved group and the dimensions into the stats table (data-stat).
+        slots = [("stat", "group"), ("stat", "scope"), ("stat", "amount"), ("stat", "complexity"),
+                 ("field", "verify"), ("field", "decisions")]
+        for kind, name in slots:
             with self.subTest(name):
-                self.assertIn(f'data-field="{name}"', page)
+                self.assertIn(f'data-{kind}="{name}"', page)
 
     def test_payload_carries_the_term_names(self):
         terms = _data(build_html(_plan({"id": "a", "title": "x"}), "<svg></svg>"))["terms"]
@@ -139,7 +142,8 @@ class TestSchemaV1Page(unittest.TestCase):
     def test_panel_shows_status_as_symbol_and_word(self):
         page = build_html(_plan({"id": "a", "title": "x", "status": "done"}), "<svg></svg>")
         self.assertEqual(_data(page)["nodes"]["a"]["status_label"], "✓ done")
-        self.assertIn('field("status").textContent = node.status_label;', page)
+        # B5: the stats cell for status shows the label (behaviour checked in test_panel).
+        self.assertIn('text: node.status_label', page)
 
     def test_no_inline_style_attributes(self):
         # The CSP admits the one <style> block by hash; a style="" attribute would be refused.

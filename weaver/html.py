@@ -16,7 +16,7 @@ from typing import Any
 
 from .dot import (_FILL, AMOUNT_OUTLINES, COMPLEXITY_COLOUR, COMPLEXITY_WIDTH, RELEASE_COLOUR,
                   SCOPE_TEXT_COLOUR)
-from .model import DIMENSIONS, STATUS_SYMBOL, Plan
+from .model import DIMENSION_MARKER, DIMENSIONS, STATUS_SYMBOL, STATUSES, Plan
 from .tokens import LIGHT, css_variables
 
 _SVG_XMLNS = re.compile(r'\s+xmlns(?::\w+)?="[^"]*"')
@@ -64,6 +64,51 @@ dialog ul { margin: 0; padding-left: 1.1rem; }
 #legend svg { vertical-align: middle; margin-right: .25rem; }
 .notes { white-space: pre-wrap; margin: 0; padding: .75rem; border-radius: 6px;
   background: var(--wv-bg); border: 1px solid var(--wv-border); }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; margin: 1rem 0 .25rem; }
+.stat { min-width: 0; padding: .3rem .5rem; border: 1px solid var(--wv-border); border-radius: 6px;
+  overflow-wrap: anywhere; }
+.stat-label { display: block; color: var(--wv-muted); font-size: .75rem; }
+.stat-value { font-weight: 600; }
+.stat[class*="status-"] { color: var(--wv-ink); }
+.stat[class*="status-"] .stat-label { color: inherit; opacity: .75; }
+.stat.kind-release { color: var(--wv-release); }
+.stat.kind-release .stat-value { font-weight: 800; }
+""" + "".join(
+    # B5: each stats cell takes its value's colour from the tokens; the page's CSP pins this
+    # sheet by hash, so the colours live here as classes, never as style="" attributes.
+    [f".stat.status-{s} {{ background: var(--wv-status-{s}); }}\n" for s in STATUSES]
+    + [f".stat.scope-{c} {{ border-left: 4px solid var(--wv-scope-{c}); }}\n"
+       for c in ("I", "L", "P", "U", "G", "unknown")]
+    + [f".stat.complexity-{c} {{ border-left: 4px solid var(--wv-complexity-{c}); }}\n"
+       for c in ("T", "E", "M", "H", "N", "unknown")])
+
+# The Task Dimension glyphs, one per value. Emoji, so the HTML view only: WeasyPrint
+# drops them, which is why the node, Markdown and PDF use the markers and codes instead.
+GLYPHS: dict[str, dict[str, str]] = {
+    "scope": dict(zip("ILPUG?", "🟦🟩🟨🟧🟥❓")),
+    "amount": dict(zip("1FNBS?", "📄📑📚📦🌊❓")),
+    "complexity": dict(zip("TEMHN?", "⚪⬜🔶🔺💥❓")),
+}
+
+# DOM-free panel core: a node in, the stats table's six cells out (text and class).
+# Kept apart from the page wiring so tests can run it under Node.
+_PANEL = """
+const panelStats = (node, plan) => {
+  const cells = [
+    { name: "kind", label: "Kind", text: node.kind, cls: "kind-" + node.kind },
+    { name: "status", label: "Status", text: node.status_label, cls: "status-" + node.status },
+    { name: "group", label: "Group", text: node.group || "—", cls: "" },
+  ];
+  for (const name of ["scope", "amount", "complexity"]) {
+    const code = node[name], marker = plan.markers[name];
+    const label = name[0].toUpperCase() + name.slice(1);
+    cells.push(code
+      ? { name, label, cls: name + "-" + (code === "?" ? "unknown" : code),
+          text: plan.glyphs[name][code] + " " + marker + code + " · " + plan.terms[name][code] }
+      : { name, label, cls: "", text: marker + " unassessed" });
+  }
+  return cells;
+};
 """
 
 # DOM-free gesture core: pointer events in, pan/zoom calls and a click verdict out.
@@ -121,7 +166,7 @@ const makeGestures = ({ pan, zoom }) => {
 };
 """
 
-_SCRIPT = _GESTURES + """
+_SCRIPT = _GESTURES + _PANEL + """
 (() => {
   const plan = JSON.parse(document.getElementById("plan-data").textContent);
   const viewport = document.getElementById("viewport");
@@ -206,12 +251,10 @@ _SCRIPT = _GESTURES + """
     if (!node) return;
     field("id").textContent = node.id;
     field("title").textContent = node.title;
-    field("kind").textContent = node.kind;
-    field("status").textContent = node.status_label;
-    field("group").textContent = node.group || "—";
-    for (const name of ["scope", "amount", "complexity"]) {
-      const code = node[name];
-      field(name).textContent = code ? code + " — " + plan.terms[name][code] : "— (unassessed)";
+    for (const stat of panelStats(node, plan)) {
+      const cell = dialog.querySelector('[data-stat="' + stat.name + '"]');
+      cell.className = stat.cls ? "stat " + stat.cls : "stat";
+      cell.querySelector(".stat-value").textContent = stat.text;
     }
     field("verify").textContent = node.verify || (node.unguarded ? "none — unguarded merge" : "—");
     field("decisions").textContent = node.decisions.length ? node.decisions.join(", ") : "—";
@@ -251,13 +294,11 @@ _DIALOG = """<dialog id="node-dialog" aria-labelledby="dialog-title">
     <div><div class="node-id" data-field="id"></div><h2 id="dialog-title" data-field="title"></h2></div>
     <button type="button" class="close" aria-label="Close">Close</button>
   </header>
+  <div class="stats">""" + "".join(
+    f'<div class="stat" data-stat="{name}"><span class="stat-label">{name.capitalize()}</span>'
+    f'<span class="stat-value"></span></div>'
+    for name in ("kind", "status", "group", "scope", "amount", "complexity")) + """</div>
   <dl>
-    <dt>Kind</dt><dd data-field="kind"></dd>
-    <dt>Status</dt><dd data-field="status"></dd>
-    <dt>Group</dt><dd data-field="group"></dd>
-    <dt>Scope</dt><dd data-field="scope"></dd>
-    <dt>Amount</dt><dd data-field="amount"></dd>
-    <dt>Complexity</dt><dd data-field="complexity"></dd>
     <dt>Verified by</dt><dd data-field="verify"></dd>
     <dt>Decisions</dt><dd data-field="decisions"></dd>
     <dt>Depends on</dt><dd><ul data-field="deps"></ul></dd>
@@ -277,7 +318,7 @@ def plan_data(plan: Plan) -> dict[str, Any]:
     dependents: dict[str, list[dict[str, str]]] = {n.id: [] for n in plan.nodes}
     for edge in plan.edges():
         dependents[edge.source].append({"id": edge.target, "seam": edge.seam})
-    return {"terms": DIMENSIONS, "nodes": {
+    return {"terms": DIMENSIONS, "markers": DIMENSION_MARKER, "glyphs": GLYPHS, "nodes": {
         n.id: {"id": n.id, "title": n.title, "kind": n.kind, "status": n.status,
                "status_label": n.status_label(),
                "group": n.group, "notes": n.notes, "scope": n.scope, "amount": n.amount,
@@ -331,12 +372,12 @@ def _legend() -> str:
                                 (_swatch("octagon", stroke=RELEASE_COLOUR), "release")])),
         ("Seam (edge)", items([(_swatch("line"), "build seam"),
                                (_swatch("line", dashed=True), "runtime seam")])),
-        ("Scope (text colour)", items([(_text_swatch(SCOPE_TEXT_COLOUR[c]), f"{c} {n}")
+        ("Scope (text colour)", items([(_text_swatch(SCOPE_TEXT_COLOUR[c]), f"{GLYPHS['scope'][c]} {c} {n}")
                                        for c, n in DIMENSIONS["scope"].items()])),
         ("Complexity (border colour, weight)",
-         items([(_swatch(stroke=COMPLEXITY_COLOUR[c], width=COMPLEXITY_WIDTH[c]), f"{c} {n}")
+         items([(_swatch(stroke=COMPLEXITY_COLOUR[c], width=COMPLEXITY_WIDTH[c]), f"{GLYPHS['complexity'][c]} {c} {n}")
                 for c, n in DIMENSIONS["complexity"].items()])),
-        ("Amount (outlines)", items([(_outlines_swatch(int(AMOUNT_OUTLINES[c])), f"{c} {n}")
+        ("Amount (outlines)", items([(_outlines_swatch(int(AMOUNT_OUTLINES[c])), f"{GLYPHS['amount'][c]} {c} {n}")
                                      for c, n in DIMENSIONS["amount"].items()])),
         ("In each node", escape("↕scope (reach) ↔amount (breadth) ⤓complexity (depth); - unassessed, "
                                 "? assessed but unknowable (ranks worst)")),
