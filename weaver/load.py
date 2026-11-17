@@ -10,8 +10,8 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from .model import (DECISION_PATTERN, DIMENSIONS, KINDS, NODE_ID_PATTERN, SCHEMA_VERSION,
-                    STATUSES, Dep, Node, Plan)
+from .model import (DECISION_PATTERN, DIMENSIONS, KIND_SINCE, KINDS, NODE_ID_PATTERN,
+                    SCHEMA_VERSION, SCHEMA_VERSIONS, STATUSES, Dep, Node, Plan)
 
 _NODE_ID = re.compile(rf"^{NODE_ID_PATTERN}$")
 _DECISION = re.compile(rf"^{DECISION_PATTERN}$")
@@ -43,10 +43,11 @@ def parse_plan(data: dict[str, Any]) -> Plan:
     raw_nodes = data.get("node")
 
     title = goal = caption = ""
+    schema = SCHEMA_VERSION
     if not isinstance(header, dict):
         errors.append("missing [plan] table")
     else:
-        _check_schema(header, errors)
+        schema = _check_schema(header, errors)
         errors += [f"[plan]: unknown key '{k}'" for k in sorted(set(header) - _PLAN_KEYS)]
         title = _string(header, "title", "[plan]", errors, required=True)
         goal = _string(header, "goal", "[plan]", errors)
@@ -57,17 +58,18 @@ def parse_plan(data: dict[str, Any]) -> Plan:
         errors.append("no [[node]] entries")
         raw_nodes = []
 
-    nodes = [n for n in (_parse_node(i, raw, errors) for i, raw in enumerate(raw_nodes)) if n]
+    nodes = [n for n in (_parse_node(i, raw, schema, errors) for i, raw in enumerate(raw_nodes))
+             if n]
     _check_ids_and_refs(nodes, errors)
     if not errors:
         _check_acyclic(nodes, errors)
 
     if errors:
         raise PlanError(errors)
-    return Plan(title=title, goal=goal, caption=caption, nodes=tuple(nodes))
+    return Plan(title=title, goal=goal, caption=caption, nodes=tuple(nodes), schema=schema)
 
 
-def _parse_node(index: int, raw: Any, errors: list[str]) -> Node | None:
+def _parse_node(index: int, raw: Any, schema: int, errors: list[str]) -> Node | None:
     where = f"node #{index + 1}"
     if not isinstance(raw, dict):
         errors.append(f"{where}: must be a table")
@@ -84,6 +86,8 @@ def _parse_node(index: int, raw: Any, errors: list[str]) -> Node | None:
         errors.append(f"{where}: 'id' must match {NODE_ID_PATTERN}")
     title = _string(raw, "title", where, errors, required=True)
     kind = _choice(raw, "kind", KINDS, where, errors)
+    if KIND_SINCE.get(kind, 1) > schema:
+        errors.append(f"{where}: kind '{kind}' needs schema = {KIND_SINCE[kind]}")
     status = _choice(raw, "status", STATUSES, where, errors)
     group = _string(raw, "group", where, errors)
     notes = _string(raw, "notes", where, errors)
@@ -130,17 +134,24 @@ def _choice(table: dict[str, Any], key: str, allowed: tuple[str, ...], where: st
     return value
 
 
-def _check_schema(header: dict[str, Any], errors: list[str]) -> None:
-    """Refuse a plan whose format version is missing or unknown, never guess at it."""
+def _check_schema(header: dict[str, Any], errors: list[str]) -> int:
+    """The plan's format version; a missing or unknown one is refused, never guessed at.
+
+    On error the newest version is returned, so node checks run once and report
+    only their own faults.
+    """
     version = header.get("schema")
+    readable = " or ".join(str(v) for v in SCHEMA_VERSIONS)
     if version is None:
-        errors.append(f"[plan]: missing 'schema' (this version of weaver reads "
-                      f"schema = {SCHEMA_VERSION})")
+        errors.append(f"[plan]: missing 'schema' (this version of weaver reads schema = {readable})")
     elif not isinstance(version, int) or isinstance(version, bool):
         errors.append("[plan]: 'schema' must be an integer")
-    elif version != SCHEMA_VERSION:
+    elif version not in SCHEMA_VERSIONS:
         errors.append(f"[plan]: unsupported schema {version} "
-                      f"(this version of weaver reads schema = {SCHEMA_VERSION})")
+                      f"(this version of weaver reads schema = {readable})")
+    else:
+        return version
+    return SCHEMA_VERSION
 
 
 def _code(table: dict[str, Any], key: str, allowed: tuple[str, ...], where: str,

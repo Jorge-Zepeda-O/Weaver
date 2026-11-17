@@ -70,7 +70,7 @@ Free text, shown in the details panel and the field notes.
 
 | Field | | Meaning |
 |---|---|---|
-| `schema` | required | The format version: `1`. A plan without it, or with a version this Weaver does not know, is refused, never guessed at. |
+| `schema` | required | The format version: `1` or `2` (`2` adds the `release` kind). A plan without it, or with a version this Weaver does not know, is refused, never guessed at. |
 | `title` | required | Non-empty. |
 | `goal` | optional | What counts as done for the whole plan. |
 | `caption` | optional | Shown under the graph: the words that make the diagram readable. |
@@ -83,7 +83,7 @@ Unknown keys are errors, so a typo fails loudly instead of being ignored.
 |---|---|---|
 | `id` | required | Letters, digits, `_`, `.`, `-`. Unique within the plan. |
 | `title` | required | Non-empty. |
-| `kind` | `atom` | `atom` or `merge`. |
+| `kind` | `atom` | `atom`, `merge`, or `release` (schema 2): a merge that marks where a version was cut, drawn as a double octagon with purple text. |
 | `status` | `todo` | `todo`, `doing`, `done` or `blocked`. Drawn as the fill colour. |
 | `group` | optional | The parallel strand the node runs in. Drawn as a lane. |
 | `deps` | optional | Build seams: ids of nodes this one statically depends on. |
@@ -91,7 +91,7 @@ Unknown keys are errors, so a typo fails loudly instead of being ignored.
 | `scope` | optional | Reach: `I` independent · `L` local · `P` project · `U` umbrella · `G` global. Drawn as the border colour, cool to hot. |
 | `amount` | optional | Breadth: `1` one · `F` few · `N` numerous · `B` bulk · `S` stream. |
 | `complexity` | optional | Depth: `T` trivial · `E` easy · `M` moderate · `H` hard · `N` novel. Drawn as the border weight. |
-| `verify` | optional | The test or check that proves the node done. A merge without one is drawn with a dashed border and marked *unguarded*. |
+| `verify` | optional | The test or check that proves the node done. A merge or release without one is drawn with a dashed border and marked *unguarded*. |
 | `decisions` | optional | The decisions behind the node, as handles: `D-3`, or `project:D-3` for another project's. Displayed, not looked up. |
 | `notes` | optional | Free text. Always shown as text, never interpreted as HTML. |
 

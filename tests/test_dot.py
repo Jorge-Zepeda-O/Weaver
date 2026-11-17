@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 from weaver import load_plan, parse_plan
-from weaver.dot import TITLE_WIDTH, render_svg, to_dot
+from weaver.dot import RELEASE_COLOUR, SCOPE_COLOUR, TITLE_WIDTH, render_svg, to_dot
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "weaver_plan.toml"
 SVG_NS = "{http://www.w3.org/2000/svg}"
@@ -39,6 +39,15 @@ class TestToDot(unittest.TestCase):
         for node_id, expected in cases:
             with self.subTest(node_id):
                 self.assertIn(expected, _statement(dot, node_id))
+
+    def test_release_is_a_purple_double_octagon(self):
+        """D-15: shape and colour both mark a release, so neither is alone."""
+        plan = parse_plan({"plan": {"schema": 2, "title": "T"}, "node": [
+            {"id": "r", "title": "v1", "kind": "release", "verify": "tag", "scope": "P"}]})
+        statement = _statement(to_dot(plan), "r")
+        self.assertIn("shape=doubleoctagon, style=filled", statement)
+        self.assertIn(f'fontcolor="{RELEASE_COLOUR}"', statement)
+        self.assertIn(f'color="{SCOPE_COLOUR["P"]}"', statement, "scope still owns the border")
 
     def test_fill_follows_status(self):
         cases = [("todo", "#ffffff"), ("doing", "#dbeafe"), ("done", "#dcfce7"), ("blocked", "#fee2e2")]

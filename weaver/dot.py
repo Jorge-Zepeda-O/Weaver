@@ -22,7 +22,10 @@ from .model import Node, Plan
 TITLE_WIDTH = 28
 
 _FILL = {"todo": "#ffffff", "doing": "#dbeafe", "done": "#dcfce7", "blocked": "#fee2e2"}
-_SHAPE = {"atom": ("box", "rounded,filled"), "merge": ("hexagon", "filled")}
+_SHAPE = {"atom": ("box", "rounded,filled"), "merge": ("hexagon", "filled"),
+          "release": ("doubleoctagon", "filled")}
+# A release's text is purple; its border stays scope's (D-15). Shape marks it too.
+RELEASE_COLOUR = "#7e22ce"
 # Heat scale, cool to hot; "?" ranks worst, so it sits past global.
 SCOPE_COLOUR = {"I": "#2563eb", "L": "#0891b2", "P": "#ca8a04", "U": "#ea580c",
                 "G": "#dc2626", "?": "#7f1d1d"}
@@ -49,6 +52,8 @@ def _node_statement(node: Node, indent: str = "  ") -> str:
     style_attr = f'"{style}"' if "," in style else style
     attrs = [f'id="node-{node.id}"', f"label={label}", f"shape={shape}", f"style={style_attr}",
              f'fillcolor="{_FILL[node.status]}"']
+    if node.kind == "release":
+        attrs.append(f'fontcolor="{RELEASE_COLOUR}"')
     if node.scope:
         attrs.append(f'color="{SCOPE_COLOUR[node.scope]}"')
     if node.complexity:

@@ -124,7 +124,7 @@ class TestSchemaV1Page(unittest.TestCase):
         page = build_html(_plan({"id": "a", "title": "x"}), "<svg></svg>")
         legend = re.search(r'<details id="legend">(.*?)</details>', page, re.S).group(1)
         for code in ["I independent", "G global", "? unknowable", "T trivial", "N novel",
-                     "1 one", "S stream", "unguarded merge", "runtime seam"]:
+                     "1 one", "S stream", "unguarded merge", "release", "runtime seam"]:
             with self.subTest(code):
                 self.assertIn(code, re.sub(r"<[^>]+>", " ", legend).replace("  ", " "))
 

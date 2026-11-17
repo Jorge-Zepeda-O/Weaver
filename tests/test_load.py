@@ -97,11 +97,13 @@ class TestInvalidPlans(unittest.TestCase):
 class TestSchemaV1(unittest.TestCase):
     ok = {"id": "a", "title": "x"}
 
-    def test_schema_version_is_required_and_must_be_1(self):
+    def test_schema_version_is_required_and_must_be_known(self):
         cases = [
             ("missing", {"plan": {"title": "T"}, "node": [self.ok]},
-             "[plan]: missing 'schema' (this version of weaver reads schema = 1)"),
-            ("unknown version", _plan(self.ok, schema=2), "[plan]: unsupported schema 2"),
+             "[plan]: missing 'schema' (this version of weaver reads schema = 1 or 2)"),
+            ("unknown version", _plan(self.ok, schema=3),
+             "[plan]: unsupported schema 3 (this version of weaver reads schema = 1 or 2)"),
+            ("zero", _plan(self.ok, schema=0), "[plan]: unsupported schema 0"),
             ("string", _plan(self.ok, schema="1"), "[plan]: 'schema' must be an integer"),
             ("bool", _plan(self.ok, schema=True), "[plan]: 'schema' must be an integer"),
         ]
@@ -149,11 +151,13 @@ class TestSchemaV1(unittest.TestCase):
                 errors = _errors(_plan({**self.ok, **extra}))
                 self.assertTrue(any(expected in e for e in errors), errors)
 
-    def test_a_merge_without_verify_is_unguarded(self):
-        cases = [("merge", "", True), ("merge", "tests/test_m.py", False), ("atom", "", False)]
+    def test_a_merge_or_release_without_verify_is_unguarded(self):
+        cases = [("merge", "", True), ("merge", "tests/test_m.py", False), ("atom", "", False),
+                 ("release", "", True), ("release", "tests/test_r.py", False)]
         for kind, verify, unguarded in cases:
             with self.subTest(kind=kind, verify=verify):
-                node = parse_plan(_plan({**self.ok, "kind": kind, "verify": verify})).node("a")
+                node = parse_plan(_plan({**self.ok, "kind": kind, "verify": verify},
+                                        schema=2)).node("a")
                 self.assertIs(node.unguarded, unguarded)
 
     def test_groups_in_order_of_first_appearance(self):
@@ -178,6 +182,28 @@ class TestSchemaV1(unittest.TestCase):
         for node in plan.nodes:
             with self.subTest(node.id):
                 self.assertTrue(node.group and node.verify and node.dimension_label(), node)
+
+
+class TestSchemaV2(unittest.TestCase):
+    """D-15: kind = "release" is new in schema 2; schema 1 plans keep working."""
+    release = {"id": "r", "title": "v1", "kind": "release", "verify": "tag pushed"}
+
+    def test_both_known_versions_load(self):
+        for version in (1, 2):
+            with self.subTest(schema=version):
+                plan = parse_plan(_plan({"id": "a", "title": "x"}, schema=version))
+                self.assertEqual(plan.schema, version)
+
+    def test_release_loads_in_schema_2(self):
+        self.assertEqual(parse_plan(_plan(self.release, schema=2)).node("r").kind, "release")
+
+    def test_release_in_schema_1_names_the_version_it_needs(self):
+        errors = _errors(_plan(self.release, schema=1))
+        self.assertIn("node 'r': kind 'release' needs schema = 2", errors)
+
+    def test_unknown_kind_lists_all_three(self):
+        errors = _errors(_plan({"id": "a", "title": "x", "kind": "merger"}, schema=2))
+        self.assertTrue(any("'kind' must be one of atom, merge, release" in e for e in errors), errors)
 
 
 if __name__ == "__main__":

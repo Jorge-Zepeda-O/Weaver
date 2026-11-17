@@ -12,15 +12,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-Kind = Literal["atom", "merge"]
+Kind = Literal["atom", "merge", "release"]
 Status = Literal["todo", "doing", "done", "blocked"]
 Seam = Literal["build", "runtime"]
 
-KINDS: tuple[Kind, ...] = ("atom", "merge")
+KINDS: tuple[Kind, ...] = ("atom", "merge", "release")
 STATUSES: tuple[Status, ...] = ("todo", "doing", "done", "blocked")
 SEAMS: tuple[Seam, ...] = ("build", "runtime")
 
-SCHEMA_VERSION = 1
+# Every plan-format version this weaver reads (D-4); the newest is the default.
+SCHEMA_VERSIONS = (1, 2)
+SCHEMA_VERSION = SCHEMA_VERSIONS[-1]
+# What a version added: a plan using it must declare at least that version.
+KIND_SINCE: dict[str, int] = {"release": 2}
 
 # Node ids end up in Graphviz source, SVG element ids and HTML, so they are
 # restricted to characters that are safe verbatim in all three.
@@ -72,8 +76,8 @@ class Node:
 
     @property
     def unguarded(self) -> bool:
-        """A merge with nothing named to prove it done."""
-        return self.kind == "merge" and not self.verify
+        """A merge or release with nothing named to prove it done."""
+        return self.kind in ("merge", "release") and not self.verify
 
     def dimension_label(self) -> str:
         """``S:L A:- C:M``, or ``""`` when no dimension is assessed."""
