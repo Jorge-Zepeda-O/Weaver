@@ -58,7 +58,8 @@ def _quote(text: str) -> str:
 
 def _node_statement(node: Node, indent: str = "  ") -> str:
     title = textwrap.wrap(node.title, TITLE_WIDTH, break_long_words=False, break_on_hyphens=False)
-    label = _quote("\n".join(filter(None, [node.id, *title, node.dimension_label()])))
+    head = f"{node.id} · {node.status_label()}"
+    label = _quote("\n".join(filter(None, [head, *title, node.dimension_label()])))
     shape, style = _SHAPE[node.kind]
     if node.unguarded:
         style += ",dashed"

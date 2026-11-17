@@ -54,7 +54,7 @@ def _page(plan: Plan, svg: str) -> str:
         deps = ", ".join(d.id if d.seam == "build" else f"{d.id} (runtime)" for d in node.deps)
         verify = f"verify: {node.verify}" if node.verify else ("unguarded" if node.unguarded else "")
         decisions = "decisions: " + ", ".join(node.decisions) if node.decisions else ""
-        meta = " · ".join(filter(None, [node.kind, node.status, node.group,
+        meta = " · ".join(filter(None, [node.kind, node.status_label(), node.group,
                                         node.dimension_label(), verify, decisions,
                                         f"depends on {deps}" if deps else ""]))
         parts.append(

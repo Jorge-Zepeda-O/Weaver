@@ -61,7 +61,7 @@ class TestMarkdownV1(unittest.TestCase):
 
     def test_row_cells(self):
         cells = [c.strip() for c in self.rows[0].strip("|").split(" | ")]
-        self.assertEqual(cells[3:7], ["left", "todo", "S:L A:- C:M", "tests/test_a.py"])
+        self.assertEqual(cells[3:7], ["left", "○ todo", "S:L A:- C:M", "tests/test_a.py"])
 
     def test_unguarded_merge_says_so(self):
         self.assertIn("| — (unguarded) |", self.rows[2])
@@ -105,6 +105,10 @@ class TestPdf(unittest.TestCase):
                          "decisions: D-3, other:D-22", "unguarded", "S = scope"]:
             with self.subTest(expected):
                 self.assertIn(expected, self.text)
+
+    def test_status_symbol_survives_into_the_pdf(self):
+        """B3: plain text symbols, not emoji, so the PDF font has them."""
+        self.assertIn("✓ done", self.text)
 
     def test_notes_and_seams_appear(self):
         for expected in ["first line", "second line", "depends on a, b (runtime)"]:

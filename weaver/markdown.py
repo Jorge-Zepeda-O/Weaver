@@ -36,7 +36,7 @@ def verify_text(node: Node) -> str:
 
 def _row(node: Node) -> str:
     deps = ", ".join(d.id if d.seam == "build" else f"{d.id} (runtime)" for d in node.deps)
-    cells = [node.id, node.kind, node.title, node.group or "—", node.status,
+    cells = [node.id, node.kind, node.title, node.group or "—", node.status_label(),
              node.dimension_label() or "—", verify_text(node), deps or "—"]
     return "| " + " | ".join(_cell(c) for c in cells) + " |"
 

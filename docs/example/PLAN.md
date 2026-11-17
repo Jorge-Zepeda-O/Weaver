@@ -6,13 +6,13 @@ One plan file, three views. A0 is the shared contract and lands first; the A2→
 
 | ID | Kind | Title | Group | Status | Dimensions | Verify | Depends on |
 |---|---|---|---|---|---|---|---|
-| A0 | atom | Data contract: Plan model + TOML schema | main | done | S:P A:F C:M | tests/test_load.py | — |
-| A1 | atom | Loader + validator | main | done | S:L A:N C:M | tests/test_load.py | A0 |
-| A2 | atom | Graphviz export: .dot + SVG | graph | done | S:L A:F C:M | tests/test_dot.py | A0 |
-| A3 | atom | HTML view: zoom, pan, pinch, click → modal | graph | done | S:L A:F C:H | tests/test_html.py, tests/test_gestures.py | A0, A2 |
-| A4 | atom | Markdown table export | main | done | S:I A:1 C:E | tests/test_views_md_pdf.py | A1 |
-| A5 | atom | PDF view: graph + caption + field notes | main | done | S:I A:1 C:E | tests/test_views_md_pdf.py | A0, A2 (runtime) |
-| M1 | merge | CLI build + end-to-end test | main | done | S:P A:F C:E | tests/test_cli.py | A1, A3, A4, A5 |
+| A0 | atom | Data contract: Plan model + TOML schema | main | ✓ done | S:P A:F C:M | tests/test_load.py | — |
+| A1 | atom | Loader + validator | main | ✓ done | S:L A:N C:M | tests/test_load.py | A0 |
+| A2 | atom | Graphviz export: .dot + SVG | graph | ✓ done | S:L A:F C:M | tests/test_dot.py | A0 |
+| A3 | atom | HTML view: zoom, pan, pinch, click → modal | graph | ✓ done | S:L A:F C:H | tests/test_html.py, tests/test_gestures.py | A0, A2 |
+| A4 | atom | Markdown table export | main | ✓ done | S:I A:1 C:E | tests/test_views_md_pdf.py | A1 |
+| A5 | atom | PDF view: graph + caption + field notes | main | ✓ done | S:I A:1 C:E | tests/test_views_md_pdf.py | A0, A2 (runtime) |
+| M1 | merge | CLI build + end-to-end test | main | ✓ done | S:P A:F C:E | tests/test_cli.py | A1, A3, A4, A5 |
 
 **Key:**
 

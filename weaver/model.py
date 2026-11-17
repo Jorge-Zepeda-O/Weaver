@@ -19,6 +19,9 @@ Seam = Literal["build", "runtime"]
 KINDS: tuple[Kind, ...] = ("atom", "merge", "release")
 STATUSES: tuple[Status, ...] = ("todo", "doing", "done", "blocked")
 SEAMS: tuple[Seam, ...] = ("build", "runtime")
+# Status is never shown by fill colour alone (B3). Plain text symbols, not emoji,
+# so every view's font has them, the PDF included.
+STATUS_SYMBOL: dict[str, str] = {"todo": "○", "doing": "◐", "done": "✓", "blocked": "✕"}
 
 # Every plan-format version this weaver reads (D-4); the newest is the default.
 SCHEMA_VERSIONS = (1, 2)
@@ -78,6 +81,10 @@ class Node:
     def unguarded(self) -> bool:
         """A merge or release with nothing named to prove it done."""
         return self.kind in ("merge", "release") and not self.verify
+
+    def status_label(self) -> str:
+        """``✓ done``: the symbol and the word."""
+        return f"{STATUS_SYMBOL[self.status]} {self.status}"
 
     def dimension_label(self) -> str:
         """``S:L A:- C:M``, or ``""`` when no dimension is assessed."""

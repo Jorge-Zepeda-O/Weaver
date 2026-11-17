@@ -124,9 +124,15 @@ class TestSchemaV1Page(unittest.TestCase):
         page = build_html(_plan({"id": "a", "title": "x"}), "<svg></svg>")
         legend = re.search(r'<details id="legend">(.*?)</details>', page, re.S).group(1)
         for code in ["I independent", "G global", "? unknowable", "T trivial", "N novel",
-                     "1 one", "S stream", "unguarded merge", "release", "runtime seam"]:
+                     "1 one", "S stream", "unguarded merge", "release", "runtime seam",
+                     "○ todo", "◐ doing", "✓ done", "✕ blocked"]:
             with self.subTest(code):
                 self.assertIn(code, re.sub(r"<[^>]+>", " ", legend).replace("  ", " "))
+
+    def test_panel_shows_status_as_symbol_and_word(self):
+        page = build_html(_plan({"id": "a", "title": "x", "status": "done"}), "<svg></svg>")
+        self.assertEqual(_data(page)["nodes"]["a"]["status_label"], "✓ done")
+        self.assertIn('field("status").textContent = node.status_label;', page)
 
     def test_no_inline_style_attributes(self):
         # The CSP admits the one <style> block by hash; a style="" attribute would be refused.

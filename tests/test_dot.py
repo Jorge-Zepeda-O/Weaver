@@ -67,13 +67,20 @@ class TestToDot(unittest.TestCase):
         self.assertIn('"a" -> "c" [class="seam-build"];', lines, "build seam must be a plain solid edge")
         self.assertIn('"b" -> "c" [class="seam-runtime", style=dashed];', lines)
 
-    def test_label_is_id_then_title(self):
+    def test_label_is_id_and_status_then_title(self):
         dot = to_dot(_plan({"id": "a", "title": "Do it"}))
-        self.assertIn('label="a\\nDo it"', _statement(dot, "a"))
+        self.assertIn('label="a · ○ todo\\nDo it"', _statement(dot, "a"))
+
+    def test_status_is_printed_so_the_fill_is_never_alone(self):
+        """B3: status was the one thing shown by colour alone."""
+        for status, mark in [("todo", "○"), ("doing", "◐"), ("done", "✓"), ("blocked", "✕")]:
+            with self.subTest(status):
+                dot = to_dot(_plan({"id": "a", "title": "x", "status": status}))
+                self.assertIn(f'label="a · {mark} {status}\\nx"', _statement(dot, "a"))
 
     def test_label_escapes_backslash_and_quote(self):
         dot = to_dot(_plan({"id": "a", "title": 'say "hi" \\N'}))
-        self.assertIn('label="a\\nsay \\"hi\\" \\\\N"', _statement(dot, "a"))
+        self.assertIn('label="a · ○ todo\\nsay \\"hi\\" \\\\N"', _statement(dot, "a"))
 
     def test_long_title_wraps_at_word_boundaries(self):
         title = "Details panel: a stats table on top, icons and colours throughout"
@@ -85,7 +92,8 @@ class TestToDot(unittest.TestCase):
 
     def test_a_word_longer_than_the_width_is_kept_whole(self):
         word = "x" * (TITLE_WIDTH + 5)
-        self.assertIn(f'label="a\\n{word}"', _statement(to_dot(_plan({"id": "a", "title": word})), "a"))
+        self.assertIn(f'label="a · ○ todo\\n{word}"',
+                      _statement(to_dot(_plan({"id": "a", "title": word})), "a"))
 
 
 class TestFindDot(unittest.TestCase):
@@ -146,7 +154,7 @@ class TestSchemaV1Dot(unittest.TestCase):
 
     def test_label_prints_the_codes_so_colour_is_never_alone(self):
         dot = to_dot(_plan({"id": "a", "title": "x", "scope": "L", "complexity": "M"}))
-        self.assertIn('label="a\\nx\\nS:L A:- C:M"', _statement(dot, "a"))
+        self.assertIn('label="a · ○ todo\\nx\\nS:L A:- C:M"', _statement(dot, "a"))
 
     def test_groups_become_lanes(self):
         dot = to_dot(_plan({"id": "a", "title": "x", "group": "sub-1"},

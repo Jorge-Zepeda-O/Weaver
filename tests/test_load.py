@@ -167,6 +167,13 @@ class TestSchemaV1(unittest.TestCase):
                                 {"id": "d", "title": "w", "group": "two"}))
         self.assertEqual(plan.groups(), ("two", "one"))
 
+    def test_status_label_is_symbol_and_word(self):
+        for status, expected in [("todo", "○ todo"), ("doing", "◐ doing"), ("done", "✓ done"),
+                                 ("blocked", "✕ blocked")]:
+            with self.subTest(status):
+                node = parse_plan(_plan({**self.ok, "status": status})).node("a")
+                self.assertEqual(node.status_label(), expected)
+
     def test_dimension_label(self):
         cases = [({}, ""), ({"scope": "L"}, "S:L A:- C:-"),
                  ({"scope": "?", "amount": "F", "complexity": "N"}, "S:? A:F C:N")]

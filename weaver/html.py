@@ -15,7 +15,7 @@ from html import escape
 from typing import Any
 
 from .dot import _FILL, COMPLEXITY_WIDTH, RELEASE_COLOUR, SCOPE_COLOUR
-from .model import DIMENSIONS, Plan
+from .model import DIMENSIONS, STATUS_SYMBOL, Plan
 from .tokens import LIGHT, css_variables
 
 _SVG_XMLNS = re.compile(r'\s+xmlns(?::\w+)?="[^"]*"')
@@ -206,7 +206,7 @@ _SCRIPT = _GESTURES + """
     field("id").textContent = node.id;
     field("title").textContent = node.title;
     field("kind").textContent = node.kind;
-    field("status").textContent = node.status;
+    field("status").textContent = node.status_label;
     field("group").textContent = node.group || "—";
     for (const name of ["scope", "amount", "complexity"]) {
       const code = node[name];
@@ -278,6 +278,7 @@ def plan_data(plan: Plan) -> dict[str, Any]:
         dependents[edge.source].append({"id": edge.target, "seam": edge.seam})
     return {"terms": DIMENSIONS, "nodes": {
         n.id: {"id": n.id, "title": n.title, "kind": n.kind, "status": n.status,
+               "status_label": n.status_label(),
                "group": n.group, "notes": n.notes, "scope": n.scope, "amount": n.amount,
                "complexity": n.complexity, "verify": n.verify, "decisions": list(n.decisions),
                "unguarded": n.unguarded,
@@ -306,7 +307,8 @@ def _legend() -> str:
         return "".join(f"<span>{swatch}{escape(text)}</span>" for swatch, text in entries)
 
     rows = [
-        ("Status (fill)", items([(_swatch(fill=c), s) for s, c in _FILL.items()])),
+        ("Status (symbol, fill)", items([(_swatch(fill=c), f"{STATUS_SYMBOL[s]} {s}")
+                                         for s, c in _FILL.items()])),
         ("Kind (shape)", items([(_swatch(), "atom"), (_swatch("hexagon"), "merge"),
                                 (_swatch("hexagon", dashed=True), "unguarded merge (no verify)"),
                                 (_swatch("octagon", stroke=RELEASE_COLOUR), "release")])),

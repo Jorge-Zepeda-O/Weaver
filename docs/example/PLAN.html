@@ -3,54 +3,54 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-v5PfSbSNPOz+I3Hrv+Bq4AsXqv0O0a/QFvsAXH0cjsc='; style-src 'sha256-ULhuLm3Qh9MNKC3f4enR4nqrVn03ZQ8zvLTi3Hp7eRA='; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-kWPDha3BwLxpzgCMj5SjEwECRSZDrfvrlelz0ZkqV7c='; style-src 'sha256-KdU2/iviy6foGUoV0Gn5NEmEngKXQt8NXIn1b3OHSuo='; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>weaver — the plan that built it</title>
-<style>
-:root { color-scheme: light dark; --bg: #f8fafc; --fg: #0f172a; --muted: #475569;
-  --panel: #ffffff; --border: #cbd5e1; --accent: #2563eb; --backdrop: rgb(15 23 42 / .45); }
+<style>:root { --wv-bg: #f8fafc; --wv-fg: #0f172a; --wv-muted: #475569; --wv-panel: #ffffff; --wv-border: #cbd5e1; --wv-accent: #2563eb; --wv-focus: #2563eb; --wv-canvas: #ffffff; --wv-ink: #334155; --wv-lane: #94a3b8; --wv-lane-text: #475569; --wv-status-todo: #ffffff; --wv-status-done: #d1fae5; --wv-status-doing: #bfdbfe; --wv-status-blocked: #fca5a5; --wv-scope-I: #2563eb; --wv-scope-L: #16a34a; --wv-scope-P: #ca8a04; --wv-scope-U: #ea580c; --wv-scope-G: #dc2626; --wv-scope-unknown: #7f1d1d; --wv-release: #7e22ce; --wv-print-ink: #111111; --wv-print-muted: #555555; }
+@media (prefers-color-scheme: dark) { :root { --wv-bg: #0b1120; --wv-fg: #e2e8f0; --wv-muted: #94a3b8; --wv-panel: #1e293b; --wv-border: #334155; --wv-accent: #60a5fa; } }
+
+:root { color-scheme: light dark; --wv-backdrop: rgb(15 23 42 / .45); }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #0b1120; --fg: #e2e8f0; --muted: #94a3b8; --panel: #1e293b;
-    --border: #334155; --accent: #60a5fa; --backdrop: rgb(0 0 0 / .6); }
+  :root { --wv-backdrop: rgb(0 0 0 / .6); }
 }
 * { box-sizing: border-box; }
-body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg);
+body { margin: 0; padding: 16px; background: var(--wv-bg); color: var(--wv-fg);
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
-.caption { color: var(--muted); margin: 0 0 1rem; max-width: 70ch; }
+.caption { color: var(--wv-muted); margin: 0 0 1rem; max-width: 70ch; }
 .toolbar { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
-.toolbar span { color: var(--muted); font-size: .85rem; }
-button { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--border);
+.toolbar span { color: var(--wv-muted); font-size: .85rem; }
+button { font: inherit; color: var(--wv-fg); background: var(--wv-panel); border: 1px solid var(--wv-border);
   border-radius: 6px; padding: .3rem .8rem; cursor: pointer; }
-button:hover { border-color: var(--accent); }
-#viewport { height: 70vh; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
-  background: #ffffff; cursor: grab; touch-action: none; user-select: none; }
+button:hover { border-color: var(--wv-accent); }
+#viewport { height: 70vh; border: 1px solid var(--wv-border); border-radius: 8px; overflow: hidden;
+  background: var(--wv-canvas); cursor: grab; touch-action: none; user-select: none; }
 #viewport.dragging { cursor: grabbing; }
 #viewport svg { display: block; width: 100%; height: 100%; }
 #viewport g.node { cursor: pointer; }
-#viewport g.node:hover polygon, #viewport g.node:hover path { stroke: var(--accent); stroke-width: 2; }
+#viewport g.node:hover polygon, #viewport g.node:hover path { stroke: var(--wv-accent); stroke-width: 2; }
 #viewport g.node:focus { outline: none; }
-#viewport g.node:focus-visible polygon, #viewport g.node:focus-visible path { stroke: #2563eb; stroke-width: 3; }
+#viewport g.node:focus-visible polygon, #viewport g.node:focus-visible path { stroke: var(--wv-focus); stroke-width: 3; }
 dialog { width: min(36rem, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 1.25rem;
-  color: var(--fg); background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
-dialog::backdrop { background: var(--backdrop); }
+  color: var(--wv-fg); background: var(--wv-panel); border: 1px solid var(--wv-border); border-radius: 10px; }
+dialog::backdrop { background: var(--wv-backdrop); }
 dialog header { display: flex; justify-content: space-between; align-items: start; gap: 1rem; }
 dialog h2 { margin: 0; font-size: 1.15rem; }
-dialog .node-id { color: var(--muted); font-family: ui-monospace, monospace; font-size: .9rem; }
+dialog .node-id { color: var(--wv-muted); font-family: ui-monospace, monospace; font-size: .9rem; }
 dialog dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1rem; margin: 1rem 0; }
-dialog dt { color: var(--muted); }
+dialog dt { color: var(--wv-muted); }
 dialog dd { margin: 0; }
 dialog ul { margin: 0; padding-left: 1.1rem; }
-.seam { color: var(--muted); font-size: .85rem; }
+.seam { color: var(--wv-muted); font-size: .85rem; }
 .goal { margin: 0 0 .5rem; max-width: 70ch; }
-#legend { margin-top: .75rem; color: var(--muted); font-size: .85rem; }
-#legend summary { cursor: pointer; color: var(--fg); }
+#legend { margin-top: .75rem; color: var(--wv-muted); font-size: .85rem; }
+#legend summary { cursor: pointer; color: var(--wv-fg); }
 #legend dl { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1rem; margin: .5rem 0 0; }
-#legend dt { color: var(--fg); }
+#legend dt { color: var(--wv-fg); }
 #legend dd { margin: 0; display: flex; flex-wrap: wrap; gap: .25rem .9rem; }
 #legend svg { vertical-align: middle; margin-right: .25rem; }
 .notes { white-space: pre-wrap; margin: 0; padding: .75rem; border-radius: 6px;
-  background: var(--bg); border: 1px solid var(--border); }
+  background: var(--wv-bg); border: 1px solid var(--wv-border); }
 </style>
 </head>
 <body>
@@ -63,147 +63,150 @@ dialog ul { margin: 0; padding-left: 1.1rem; }
 <!-- Generated by graphviz version 2.43.0 (0)
  -->
 <!-- Title: plan Pages: 1 -->
-<svg width="1104pt" height="283pt"
- viewBox="0.00 0.00 1103.81 283.28">
-<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 279.28)">
+<svg width="944pt" height="299pt"
+ viewBox="0.00 0.00 943.81 298.68">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 294.68)">
 <title>plan</title>
-<polygon fill="white" stroke="transparent" points="-4,4 -4,-279.28 1099.81,-279.28 1099.81,4 -4,4"/>
-<g id="clust1" class="cluster">
+<polygon fill="white" stroke="transparent" points="-4,4 -4,-294.68 939.81,-294.68 939.81,4 -4,4"/>
+<g id="clust1" class="cluster lane">
 <title>cluster_0</title>
-<path fill="none" stroke="#94a3b8" stroke-dasharray="5,2" d="M20,-105.28C20,-105.28 1075.81,-105.28 1075.81,-105.28 1081.81,-105.28 1087.81,-111.28 1087.81,-117.28 1087.81,-117.28 1087.81,-255.28 1087.81,-255.28 1087.81,-261.28 1081.81,-267.28 1075.81,-267.28 1075.81,-267.28 20,-267.28 20,-267.28 14,-267.28 8,-261.28 8,-255.28 8,-255.28 8,-117.28 8,-117.28 8,-111.28 14,-105.28 20,-105.28"/>
-<text text-anchor="middle" x="547.91" y="-254.48" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#475569">main</text>
+<path fill="none" stroke="#94a3b8" stroke-dasharray="5,2" d="M20,-108.68C20,-108.68 915.81,-108.68 915.81,-108.68 921.81,-108.68 927.81,-114.68 927.81,-120.68 927.81,-120.68 927.81,-270.68 927.81,-270.68 927.81,-276.68 921.81,-282.68 915.81,-282.68 915.81,-282.68 20,-282.68 20,-282.68 14,-282.68 8,-276.68 8,-270.68 8,-270.68 8,-120.68 8,-120.68 8,-114.68 14,-108.68 20,-108.68"/>
+<text text-anchor="middle" x="467.91" y="-269.88" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#475569">main</text>
 </g>
-<g id="clust2" class="cluster">
+<g id="clust2" class="cluster lane">
 <title>cluster_1</title>
-<path fill="none" stroke="#94a3b8" stroke-dasharray="5,2" d="M311,-17.28C311,-17.28 772,-17.28 772,-17.28 778,-17.28 784,-23.28 784,-29.28 784,-29.28 784,-85.28 784,-85.28 784,-91.28 778,-97.28 772,-97.28 772,-97.28 311,-97.28 311,-97.28 305,-97.28 299,-91.28 299,-85.28 299,-85.28 299,-29.28 299,-29.28 299,-23.28 305,-17.28 311,-17.28"/>
-<text text-anchor="middle" x="541.5" y="-84.48" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#475569">graph</text>
+<path fill="none" stroke="#94a3b8" stroke-dasharray="5,2" d="M229,-8.68C229,-8.68 612,-8.68 612,-8.68 618,-8.68 624,-14.68 624,-20.68 624,-20.68 624,-88.68 624,-88.68 624,-94.68 618,-100.68 612,-100.68 612,-100.68 229,-100.68 229,-100.68 223,-100.68 217,-94.68 217,-88.68 217,-88.68 217,-20.68 217,-20.68 217,-14.68 223,-8.68 229,-8.68"/>
+<text text-anchor="middle" x="420.5" y="-87.88" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#475569">graph</text>
 </g>
 <!-- A0 -->
-<g id="node-A0" class="node">
+<g id="node-A0" class="node kind-atom status-done scope-P amount-F complexity-M">
 <title>A0</title>
-<path fill="#dcfce7" stroke="#ca8a04" stroke-width="2.5" d="M259,-157.28C259,-157.28 28,-157.28 28,-157.28 22,-157.28 16,-151.28 16,-145.28 16,-145.28 16,-125.28 16,-125.28 16,-119.28 22,-113.28 28,-113.28 28,-113.28 259,-113.28 259,-113.28 265,-113.28 271,-119.28 271,-125.28 271,-125.28 271,-145.28 271,-145.28 271,-151.28 265,-157.28 259,-157.28"/>
-<text text-anchor="middle" x="143.5" y="-144.48" font-family="Helvetica,sans-Serif" font-size="11.00">A0</text>
-<text text-anchor="middle" x="143.5" y="-132.48" font-family="Helvetica,sans-Serif" font-size="11.00">Data contract: Plan model + TOML schema</text>
-<text text-anchor="middle" x="143.5" y="-120.48" font-family="Helvetica,sans-Serif" font-size="11.00">S:P A:F C:M</text>
+<path fill="#d1fae5" stroke="#ca8a04" stroke-width="2.5" d="M177,-172.68C177,-172.68 28,-172.68 28,-172.68 22,-172.68 16,-166.68 16,-160.68 16,-160.68 16,-128.68 16,-128.68 16,-122.68 22,-116.68 28,-116.68 28,-116.68 177,-116.68 177,-116.68 183,-116.68 189,-122.68 189,-128.68 189,-128.68 189,-160.68 189,-160.68 189,-166.68 183,-172.68 177,-172.68"/>
+<text text-anchor="middle" x="102.5" y="-159.88" font-family="Helvetica,sans-Serif" font-size="11.00">A0 · ✓ done</text>
+<text text-anchor="middle" x="102.5" y="-147.88" font-family="Helvetica,sans-Serif" font-size="11.00">Data contract: Plan model +</text>
+<text text-anchor="middle" x="102.5" y="-135.88" font-family="Helvetica,sans-Serif" font-size="11.00">TOML schema</text>
+<text text-anchor="middle" x="102.5" y="-123.88" font-family="Helvetica,sans-Serif" font-size="11.00">S:P A:F C:M</text>
 </g>
 <!-- A1 -->
-<g id="node-A1" class="node">
+<g id="node-A1" class="node kind-atom status-done scope-L amount-N complexity-M">
 <title>A1</title>
-<path fill="#dcfce7" stroke="#0891b2" stroke-width="2.5" d="M441,-219.28C441,-219.28 346,-219.28 346,-219.28 340,-219.28 334,-213.28 334,-207.28 334,-207.28 334,-187.28 334,-187.28 334,-181.28 340,-175.28 346,-175.28 346,-175.28 441,-175.28 441,-175.28 447,-175.28 453,-181.28 453,-187.28 453,-187.28 453,-207.28 453,-207.28 453,-213.28 447,-219.28 441,-219.28"/>
-<text text-anchor="middle" x="393.5" y="-206.48" font-family="Helvetica,sans-Serif" font-size="11.00">A1</text>
-<text text-anchor="middle" x="393.5" y="-194.48" font-family="Helvetica,sans-Serif" font-size="11.00">Loader + validator</text>
-<text text-anchor="middle" x="393.5" y="-182.48" font-family="Helvetica,sans-Serif" font-size="11.00">S:L A:N C:M</text>
+<path fill="#d1fae5" stroke="#16a34a" stroke-width="2.5" d="M359,-234.68C359,-234.68 264,-234.68 264,-234.68 258,-234.68 252,-228.68 252,-222.68 252,-222.68 252,-202.68 252,-202.68 252,-196.68 258,-190.68 264,-190.68 264,-190.68 359,-190.68 359,-190.68 365,-190.68 371,-196.68 371,-202.68 371,-202.68 371,-222.68 371,-222.68 371,-228.68 365,-234.68 359,-234.68"/>
+<text text-anchor="middle" x="311.5" y="-221.88" font-family="Helvetica,sans-Serif" font-size="11.00">A1 · ✓ done</text>
+<text text-anchor="middle" x="311.5" y="-209.88" font-family="Helvetica,sans-Serif" font-size="11.00">Loader + validator</text>
+<text text-anchor="middle" x="311.5" y="-197.88" font-family="Helvetica,sans-Serif" font-size="11.00">S:L A:N C:M</text>
 </g>
 <!-- A0&#45;&gt;A1 -->
-<g id="edge1" class="edge">
+<g id="edge1" class="edge seam-build">
 <title>A0&#45;&gt;A1</title>
-<path fill="none" stroke="black" d="M232.63,-157.32C262.65,-164.82 295.73,-173.09 323.97,-180.15"/>
-<polygon fill="black" stroke="black" points="323.2,-183.57 333.75,-182.6 324.9,-176.78 323.2,-183.57"/>
+<path fill="none" stroke="black" d="M188.89,-172.73C206.58,-178.54 225,-184.59 241.99,-190.18"/>
+<polygon fill="black" stroke="black" points="241.22,-193.61 251.81,-193.4 243.4,-186.96 241.22,-193.61"/>
 </g>
 <!-- A5 -->
-<g id="node-A5" class="node">
+<g id="node-A5" class="node kind-atom status-done scope-I amount-1 complexity-E">
 <title>A5</title>
-<path fill="#dcfce7" stroke="#2563eb" stroke-width="1.5" d="M752,-157.28C752,-157.28 540,-157.28 540,-157.28 534,-157.28 528,-151.28 528,-145.28 528,-145.28 528,-125.28 528,-125.28 528,-119.28 534,-113.28 540,-113.28 540,-113.28 752,-113.28 752,-113.28 758,-113.28 764,-119.28 764,-125.28 764,-125.28 764,-145.28 764,-145.28 764,-151.28 758,-157.28 752,-157.28"/>
-<text text-anchor="middle" x="646" y="-144.48" font-family="Helvetica,sans-Serif" font-size="11.00">A5</text>
-<text text-anchor="middle" x="646" y="-132.48" font-family="Helvetica,sans-Serif" font-size="11.00">PDF view: graph + caption + field notes</text>
-<text text-anchor="middle" x="646" y="-120.48" font-family="Helvetica,sans-Serif" font-size="11.00">S:I A:1 C:E</text>
+<path fill="#d1fae5" stroke="#2563eb" stroke-width="1.5" d="M600.5,-172.68C600.5,-172.68 449.5,-172.68 449.5,-172.68 443.5,-172.68 437.5,-166.68 437.5,-160.68 437.5,-160.68 437.5,-128.68 437.5,-128.68 437.5,-122.68 443.5,-116.68 449.5,-116.68 449.5,-116.68 600.5,-116.68 600.5,-116.68 606.5,-116.68 612.5,-122.68 612.5,-128.68 612.5,-128.68 612.5,-160.68 612.5,-160.68 612.5,-166.68 606.5,-172.68 600.5,-172.68"/>
+<text text-anchor="middle" x="525" y="-159.88" font-family="Helvetica,sans-Serif" font-size="11.00">A5 · ✓ done</text>
+<text text-anchor="middle" x="525" y="-147.88" font-family="Helvetica,sans-Serif" font-size="11.00">PDF view: graph + caption +</text>
+<text text-anchor="middle" x="525" y="-135.88" font-family="Helvetica,sans-Serif" font-size="11.00">field notes</text>
+<text text-anchor="middle" x="525" y="-123.88" font-family="Helvetica,sans-Serif" font-size="11.00">S:I A:1 C:E</text>
 </g>
 <!-- A0&#45;&gt;A5 -->
-<g id="edge6" class="edge">
+<g id="edge6" class="edge seam-build">
 <title>A0&#45;&gt;A5</title>
-<path fill="none" stroke="black" d="M271.12,-135.28C346.65,-135.28 442.23,-135.28 517.85,-135.28"/>
-<polygon fill="black" stroke="black" points="517.91,-138.78 527.91,-135.28 517.91,-131.78 517.91,-138.78"/>
+<path fill="none" stroke="black" d="M189.1,-144.68C258.11,-144.68 355.15,-144.68 427.02,-144.68"/>
+<polygon fill="black" stroke="black" points="427.44,-148.18 437.44,-144.68 427.44,-141.18 427.44,-148.18"/>
 </g>
 <!-- A2 -->
-<g id="node-A2" class="node">
+<g id="node-A2" class="node kind-atom status-done scope-L amount-F complexity-M">
 <title>A2</title>
-<path fill="#dcfce7" stroke="#0891b2" stroke-width="2.5" d="M468,-69.28C468,-69.28 319,-69.28 319,-69.28 313,-69.28 307,-63.28 307,-57.28 307,-57.28 307,-37.28 307,-37.28 307,-31.28 313,-25.28 319,-25.28 319,-25.28 468,-25.28 468,-25.28 474,-25.28 480,-31.28 480,-37.28 480,-37.28 480,-57.28 480,-57.28 480,-63.28 474,-69.28 468,-69.28"/>
-<text text-anchor="middle" x="393.5" y="-56.48" font-family="Helvetica,sans-Serif" font-size="11.00">A2</text>
-<text text-anchor="middle" x="393.5" y="-44.48" font-family="Helvetica,sans-Serif" font-size="11.00">Graphviz export: .dot + SVG</text>
-<text text-anchor="middle" x="393.5" y="-32.48" font-family="Helvetica,sans-Serif" font-size="11.00">S:L A:F C:M</text>
+<path fill="#d1fae5" stroke="#16a34a" stroke-width="2.5" d="M386,-72.68C386,-72.68 237,-72.68 237,-72.68 231,-72.68 225,-66.68 225,-60.68 225,-60.68 225,-40.68 225,-40.68 225,-34.68 231,-28.68 237,-28.68 237,-28.68 386,-28.68 386,-28.68 392,-28.68 398,-34.68 398,-40.68 398,-40.68 398,-60.68 398,-60.68 398,-66.68 392,-72.68 386,-72.68"/>
+<text text-anchor="middle" x="311.5" y="-59.88" font-family="Helvetica,sans-Serif" font-size="11.00">A2 · ✓ done</text>
+<text text-anchor="middle" x="311.5" y="-47.88" font-family="Helvetica,sans-Serif" font-size="11.00">Graphviz export: .dot + SVG</text>
+<text text-anchor="middle" x="311.5" y="-35.88" font-family="Helvetica,sans-Serif" font-size="11.00">S:L A:F C:M</text>
 </g>
 <!-- A0&#45;&gt;A2 -->
-<g id="edge2" class="edge">
+<g id="edge2" class="edge seam-build">
 <title>A0&#45;&gt;A2</title>
-<path fill="none" stroke="black" d="M206.76,-113.19C241.4,-100.9 284.67,-85.55 320.73,-72.75"/>
-<polygon fill="black" stroke="black" points="321.96,-76.03 330.21,-69.39 319.62,-69.43 321.96,-76.03"/>
+<path fill="none" stroke="black" d="M165.33,-116.61C192.93,-104.07 225.28,-89.38 252.42,-77.06"/>
+<polygon fill="black" stroke="black" points="254.13,-80.12 261.79,-72.8 251.24,-73.75 254.13,-80.12"/>
 </g>
 <!-- A3 -->
-<g id="node-A3" class="node">
+<g id="node-A3" class="node kind-atom status-done scope-L amount-F complexity-H">
 <title>A3</title>
-<path fill="#dcfce7" stroke="#0891b2" stroke-width="3.5" d="M764,-69.28C764,-69.28 528,-69.28 528,-69.28 522,-69.28 516,-63.28 516,-57.28 516,-57.28 516,-37.28 516,-37.28 516,-31.28 522,-25.28 528,-25.28 528,-25.28 764,-25.28 764,-25.28 770,-25.28 776,-31.28 776,-37.28 776,-37.28 776,-57.28 776,-57.28 776,-63.28 770,-69.28 764,-69.28"/>
-<text text-anchor="middle" x="646" y="-56.48" font-family="Helvetica,sans-Serif" font-size="11.00">A3</text>
-<text text-anchor="middle" x="646" y="-44.48" font-family="Helvetica,sans-Serif" font-size="11.00">HTML view: zoom, pan, pinch, click → modal</text>
-<text text-anchor="middle" x="646" y="-32.48" font-family="Helvetica,sans-Serif" font-size="11.00">S:L A:F C:H</text>
+<path fill="#d1fae5" stroke="#16a34a" stroke-width="3.5" d="M604,-72.68C604,-72.68 446,-72.68 446,-72.68 440,-72.68 434,-66.68 434,-60.68 434,-60.68 434,-28.68 434,-28.68 434,-22.68 440,-16.68 446,-16.68 446,-16.68 604,-16.68 604,-16.68 610,-16.68 616,-22.68 616,-28.68 616,-28.68 616,-60.68 616,-60.68 616,-66.68 610,-72.68 604,-72.68"/>
+<text text-anchor="middle" x="525" y="-59.88" font-family="Helvetica,sans-Serif" font-size="11.00">A3 · ✓ done</text>
+<text text-anchor="middle" x="525" y="-47.88" font-family="Helvetica,sans-Serif" font-size="11.00">HTML view: zoom, pan, pinch,</text>
+<text text-anchor="middle" x="525" y="-35.88" font-family="Helvetica,sans-Serif" font-size="11.00">click → modal</text>
+<text text-anchor="middle" x="525" y="-23.88" font-family="Helvetica,sans-Serif" font-size="11.00">S:L A:F C:H</text>
 </g>
 <!-- A0&#45;&gt;A3 -->
-<g id="edge3" class="edge">
+<g id="edge3" class="edge seam-build">
 <title>A0&#45;&gt;A3</title>
-<path fill="none" stroke="black" d="M164.27,-112.82C191.31,-83.98 242.91,-35.38 299,-16.28 387.61,13.88 495.95,-3.92 567.53,-22.62"/>
-<polygon fill="black" stroke="black" points="566.81,-26.05 577.38,-25.26 568.62,-19.29 566.81,-26.05"/>
+<path fill="none" stroke="black" d="M119.22,-116.5C137.99,-86.09 172.51,-39.38 217,-19.68 283.84,9.91 366.82,0.77 429.66,-14.17"/>
+<polygon fill="black" stroke="black" points="429.02,-17.62 439.56,-16.61 430.69,-10.82 429.02,-17.62"/>
 </g>
 <!-- A4 -->
-<g id="node-A4" class="node">
+<g id="node-A4" class="node kind-atom status-done scope-I amount-1 complexity-E">
 <title>A4</title>
-<path fill="#dcfce7" stroke="#2563eb" stroke-width="1.5" d="M706,-219.28C706,-219.28 586,-219.28 586,-219.28 580,-219.28 574,-213.28 574,-207.28 574,-207.28 574,-187.28 574,-187.28 574,-181.28 580,-175.28 586,-175.28 586,-175.28 706,-175.28 706,-175.28 712,-175.28 718,-181.28 718,-187.28 718,-187.28 718,-207.28 718,-207.28 718,-213.28 712,-219.28 706,-219.28"/>
-<text text-anchor="middle" x="646" y="-206.48" font-family="Helvetica,sans-Serif" font-size="11.00">A4</text>
-<text text-anchor="middle" x="646" y="-194.48" font-family="Helvetica,sans-Serif" font-size="11.00">Markdown table export</text>
-<text text-anchor="middle" x="646" y="-182.48" font-family="Helvetica,sans-Serif" font-size="11.00">S:I A:1 C:E</text>
+<path fill="#d1fae5" stroke="#2563eb" stroke-width="1.5" d="M585,-234.68C585,-234.68 465,-234.68 465,-234.68 459,-234.68 453,-228.68 453,-222.68 453,-222.68 453,-202.68 453,-202.68 453,-196.68 459,-190.68 465,-190.68 465,-190.68 585,-190.68 585,-190.68 591,-190.68 597,-196.68 597,-202.68 597,-202.68 597,-222.68 597,-222.68 597,-228.68 591,-234.68 585,-234.68"/>
+<text text-anchor="middle" x="525" y="-221.88" font-family="Helvetica,sans-Serif" font-size="11.00">A4 · ✓ done</text>
+<text text-anchor="middle" x="525" y="-209.88" font-family="Helvetica,sans-Serif" font-size="11.00">Markdown table export</text>
+<text text-anchor="middle" x="525" y="-197.88" font-family="Helvetica,sans-Serif" font-size="11.00">S:I A:1 C:E</text>
 </g>
 <!-- A1&#45;&gt;A4 -->
-<g id="edge5" class="edge">
+<g id="edge5" class="edge seam-build">
 <title>A1&#45;&gt;A4</title>
-<path fill="none" stroke="black" d="M453.23,-197.28C486,-197.28 527.34,-197.28 563.23,-197.28"/>
-<polygon fill="black" stroke="black" points="563.69,-200.78 573.69,-197.28 563.69,-193.78 563.69,-200.78"/>
+<path fill="none" stroke="black" d="M371.13,-212.68C393.28,-212.68 418.88,-212.68 442.73,-212.68"/>
+<polygon fill="black" stroke="black" points="442.83,-216.18 452.83,-212.68 442.83,-209.18 442.83,-216.18"/>
 </g>
 <!-- M1 -->
-<g id="node-M1" class="node">
+<g id="node-M1" class="node kind-merge status-done scope-P amount-F complexity-E">
 <title>M1</title>
-<polygon fill="#dcfce7" stroke="#ca8a04" stroke-width="1.5" points="1079.72,-173.28 1012.81,-209.14 879,-209.14 812.09,-173.28 879,-137.43 1012.81,-137.43 1079.72,-173.28"/>
-<text text-anchor="middle" x="945.91" y="-182.48" font-family="Helvetica,sans-Serif" font-size="11.00">M1</text>
-<text text-anchor="middle" x="945.91" y="-170.48" font-family="Helvetica,sans-Serif" font-size="11.00">CLI build + end&#45;to&#45;end test</text>
-<text text-anchor="middle" x="945.91" y="-158.48" font-family="Helvetica,sans-Serif" font-size="11.00">S:P A:F C:E</text>
+<polygon fill="#d1fae5" stroke="#ca8a04" stroke-width="1.5" points="919.72,-182.68 852.81,-218.53 719,-218.53 652.09,-182.68 719,-146.83 852.81,-146.83 919.72,-182.68"/>
+<text text-anchor="middle" x="785.91" y="-191.88" font-family="Helvetica,sans-Serif" font-size="11.00">M1 · ✓ done</text>
+<text text-anchor="middle" x="785.91" y="-179.88" font-family="Helvetica,sans-Serif" font-size="11.00">CLI build + end&#45;to&#45;end test</text>
+<text text-anchor="middle" x="785.91" y="-167.88" font-family="Helvetica,sans-Serif" font-size="11.00">S:P A:F C:E</text>
 </g>
 <!-- A1&#45;&gt;M1 -->
-<g id="edge8" class="edge">
+<g id="edge8" class="edge seam-build">
 <title>A1&#45;&gt;M1</title>
-<path fill="none" stroke="black" d="M453.26,-215.42C472.99,-220.67 495.26,-225.68 516,-228.28 634.18,-243.12 666.5,-247.81 784,-228.28 809.45,-224.05 836.28,-216.3 860.58,-207.93"/>
-<polygon fill="black" stroke="black" points="861.84,-211.19 870.11,-204.56 859.52,-204.59 861.84,-211.19"/>
+<path fill="none" stroke="black" d="M371.26,-230.82C390.99,-236.07 413.26,-241.08 434,-243.68 517.79,-254.2 540.94,-258.9 624,-243.68 650.97,-238.74 679.28,-229.5 704.51,-219.68"/>
+<polygon fill="black" stroke="black" points="706.02,-222.85 714.01,-215.9 703.43,-216.35 706.02,-222.85"/>
 </g>
 <!-- A4&#45;&gt;M1 -->
-<g id="edge10" class="edge">
+<g id="edge10" class="edge seam-build">
 <title>A4&#45;&gt;M1</title>
-<path fill="none" stroke="black" d="M718.36,-191.54C748.59,-189.1 784.75,-186.19 819.2,-183.41"/>
-<polygon fill="black" stroke="black" points="819.66,-186.89 829.35,-182.59 819.1,-179.91 819.66,-186.89"/>
+<path fill="none" stroke="black" d="M597.09,-204.45C618.31,-201.99 642.18,-199.22 665.6,-196.51"/>
+<polygon fill="black" stroke="black" points="666.07,-199.98 675.6,-195.35 665.26,-193.02 666.07,-199.98"/>
 </g>
 <!-- A5&#45;&gt;M1 -->
-<g id="edge11" class="edge">
+<g id="edge11" class="edge seam-build">
 <title>A5&#45;&gt;M1</title>
-<path fill="none" stroke="black" d="M764.31,-150.25C785.02,-152.89 806.59,-155.64 827.3,-158.28"/>
-<polygon fill="black" stroke="black" points="827.03,-161.78 837.4,-159.57 827.92,-154.83 827.03,-161.78"/>
+<path fill="none" stroke="black" d="M612.57,-157.39C631.1,-160.11 650.95,-163.02 670.34,-165.87"/>
+<polygon fill="black" stroke="black" points="670.03,-169.36 680.44,-167.35 671.05,-162.43 670.03,-169.36"/>
 </g>
 <!-- A2&#45;&gt;A5 -->
-<g id="edge7" class="edge">
+<g id="edge7" class="edge seam-runtime">
 <title>A2&#45;&gt;A5</title>
-<path fill="none" stroke="black" stroke-dasharray="5,2" d="M439.38,-69.3C462.01,-79.87 490.08,-92.18 516,-101.28 525.1,-104.48 534.64,-107.54 544.26,-110.41"/>
-<polygon fill="black" stroke="black" points="543.3,-113.78 553.88,-113.23 545.26,-107.06 543.3,-113.78"/>
+<path fill="none" stroke="black" stroke-dasharray="5,2" d="M362.09,-72.72C388.64,-84.52 421.84,-99.28 451.26,-112.35"/>
+<polygon fill="black" stroke="black" points="450.11,-115.67 460.67,-116.53 452.95,-109.27 450.11,-115.67"/>
 </g>
 <!-- A2&#45;&gt;A3 -->
-<g id="edge4" class="edge">
+<g id="edge4" class="edge seam-build">
 <title>A2&#45;&gt;A3</title>
-<path fill="none" stroke="black" d="M480.01,-47.28C488.36,-47.28 496.98,-47.28 505.69,-47.28"/>
-<polygon fill="black" stroke="black" points="505.94,-50.78 515.94,-47.28 505.94,-43.78 505.94,-50.78"/>
+<path fill="none" stroke="black" d="M398.22,-48.25C406.52,-48.02 415,-47.77 423.43,-47.54"/>
+<polygon fill="black" stroke="black" points="423.78,-51.03 433.68,-47.24 423.58,-44.03 423.78,-51.03"/>
 </g>
 <!-- A3&#45;&gt;M1 -->
-<g id="edge9" class="edge">
+<g id="edge9" class="edge seam-build">
 <title>A3&#45;&gt;M1</title>
-<path fill="none" stroke="black" d="M704.56,-69.3C729.14,-78.88 758.08,-90.38 784,-101.28 810.13,-112.27 838.42,-124.74 863.88,-136.17"/>
-<polygon fill="black" stroke="black" points="862.56,-139.42 873.12,-140.33 865.44,-133.03 862.56,-139.42"/>
+<path fill="none" stroke="black" d="M578.71,-72.78C616.17,-92.75 667.06,-119.87 708.91,-142.18"/>
+<polygon fill="black" stroke="black" points="707.5,-145.39 717.97,-147 710.79,-139.21 707.5,-145.39"/>
 </g>
 </g>
 </svg>
 </div>
-<details id="legend"><summary>Legend</summary><dl><dt>Status (fill)</dt><dd><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="1"/></svg>todo</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#dbeafe" stroke="#334155" stroke-width="1"/></svg>doing</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#dcfce7" stroke="#334155" stroke-width="1"/></svg>done</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#fee2e2" stroke="#334155" stroke-width="1"/></svg>blocked</span></dd><dt>Kind (shape)</dt><dd><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="1"/></svg>atom</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><polygon points="2,8 6,2 16,2 20,8 16,14 6,14" fill="#ffffff" stroke="#334155" stroke-width="1"/></svg>merge</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><polygon points="2,8 6,2 16,2 20,8 16,14 6,14" fill="#ffffff" stroke="#334155" stroke-width="1" stroke-dasharray="3 2"/></svg>unguarded merge (no verify)</span></dd><dt>Seam (edge)</dt><dd><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><line x1="1" y1="8" x2="21" y2="8" stroke="#334155" stroke-width="1.5"/></svg>build seam</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><line x1="1" y1="8" x2="21" y2="8" stroke="#334155" stroke-width="1.5" stroke-dasharray="3 2"/></svg>runtime seam</span></dd><dt>Scope (border colour)</dt><dd><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#2563eb" stroke-width="2.5"/></svg>I independent</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#0891b2" stroke-width="2.5"/></svg>L local</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#ca8a04" stroke-width="2.5"/></svg>P project</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#ea580c" stroke-width="2.5"/></svg>U umbrella</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#dc2626" stroke-width="2.5"/></svg>G global</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#7f1d1d" stroke-width="2.5"/></svg>? unknowable</span></dd><dt>Complexity (border weight)</dt><dd><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="1"/></svg>T trivial</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="1.5"/></svg>E easy</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="2.5"/></svg>M moderate</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="3.5"/></svg>H hard</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="5"/></svg>N novel</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="5"/></svg>? unknowable</span></dd><dt>Amount (printed)</dt><dd><span>1 one</span><span>F few</span><span>N numerous</span><span>B bulk</span><span>S stream</span><span>? unknowable</span></dd><dt>In each node</dt><dd>S:scope A:amount C:complexity; - unassessed, ? assessed but unknowable (ranks worst)</dd></dl></details>
+<details id="legend"><summary>Legend</summary><dl><dt>Status (symbol, fill)</dt><dd><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="1"/></svg>○ todo</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#bfdbfe" stroke="#334155" stroke-width="1"/></svg>◐ doing</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#d1fae5" stroke="#334155" stroke-width="1"/></svg>✓ done</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#fca5a5" stroke="#334155" stroke-width="1"/></svg>✕ blocked</span></dd><dt>Kind (shape)</dt><dd><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="1"/></svg>atom</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><polygon points="2,8 6,2 16,2 20,8 16,14 6,14" fill="#ffffff" stroke="#334155" stroke-width="1"/></svg>merge</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><polygon points="2,8 6,2 16,2 20,8 16,14 6,14" fill="#ffffff" stroke="#334155" stroke-width="1" stroke-dasharray="3 2"/></svg>unguarded merge (no verify)</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><polygon points="7,1 15,1 21,5 21,11 15,15 7,15 1,11 1,5" fill="#ffffff" stroke="#7e22ce" stroke-width="1"/></svg>release</span></dd><dt>Seam (edge)</dt><dd><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><line x1="1" y1="8" x2="21" y2="8" stroke="#334155" stroke-width="1.5"/></svg>build seam</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><line x1="1" y1="8" x2="21" y2="8" stroke="#334155" stroke-width="1.5" stroke-dasharray="3 2"/></svg>runtime seam</span></dd><dt>Scope (border colour)</dt><dd><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#2563eb" stroke-width="2.5"/></svg>I independent</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#16a34a" stroke-width="2.5"/></svg>L local</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#ca8a04" stroke-width="2.5"/></svg>P project</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#ea580c" stroke-width="2.5"/></svg>U umbrella</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#dc2626" stroke-width="2.5"/></svg>G global</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#7f1d1d" stroke-width="2.5"/></svg>? unknowable</span></dd><dt>Complexity (border weight)</dt><dd><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="1"/></svg>T trivial</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="1.5"/></svg>E easy</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="2.5"/></svg>M moderate</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="3.5"/></svg>H hard</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="5"/></svg>N novel</span><span><svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><rect x="2" y="2" width="18" height="12" rx="3" fill="#ffffff" stroke="#334155" stroke-width="5"/></svg>? unknowable</span></dd><dt>Amount (printed)</dt><dd><span>1 one</span><span>F few</span><span>N numerous</span><span>B bulk</span><span>S stream</span><span>? unknowable</span></dd><dt>In each node</dt><dd>S:scope A:amount C:complexity; - unassessed, ? assessed but unknowable (ranks worst)</dd></dl></details>
 <dialog id="node-dialog" aria-labelledby="dialog-title">
   <header>
     <div><div class="node-id" data-field="id"></div><h2 id="dialog-title" data-field="title"></h2></div>
@@ -223,7 +226,7 @@ dialog ul { margin: 0; padding-left: 1.1rem; }
   </dl>
   <p class="notes" data-field="notes"></p>
 </dialog>
-<script type="application/json" id="plan-data">{"terms": {"scope": {"I": "independent", "L": "local", "P": "project", "U": "umbrella", "G": "global", "?": "unknowable"}, "amount": {"1": "one", "F": "few", "N": "numerous", "B": "bulk", "S": "stream", "?": "unknowable"}, "complexity": {"T": "trivial", "E": "easy", "M": "moderate", "H": "hard", "N": "novel", "?": "unknowable"}}, "nodes": {"A0": {"id": "A0", "title": "Data contract: Plan model + TOML schema", "kind": "atom", "status": "done", "group": "main", "notes": "The contract every other atom builds against: Plan, Node, Dep, Edge in weaver/model.py, plus this file as the schema example.\nLands first, so the parallel strands share no other file.\n", "scope": "P", "amount": "F", "complexity": "M", "verify": "tests/test_load.py", "decisions": [], "unguarded": false, "deps": [], "dependents": [{"id": "A1", "seam": "build"}, {"id": "A2", "seam": "build"}, {"id": "A3", "seam": "build"}, {"id": "A5", "seam": "build"}]}, "A1": {"id": "A1", "title": "Loader + validator", "kind": "atom", "status": "done", "group": "main", "notes": "load_plan / parse_plan. Reports every error in one run: unknown keys, bad ids, kinds, statuses and codes, unknown or duplicate deps, self-deps, cycles (with the path), a missing or unknown schema version.\n", "scope": "L", "amount": "N", "complexity": "M", "verify": "tests/test_load.py", "decisions": [], "unguarded": false, "deps": [{"id": "A0", "seam": "build"}], "dependents": [{"id": "A4", "seam": "build"}, {"id": "M1", "seam": "build"}]}, "A2": {"id": "A2", "title": "Graphviz export: .dot + SVG", "kind": "atom", "status": "done", "group": "graph", "notes": "Shape by kind (atom vs merge), line style by seam (build solid, runtime dashed), fill by status, lanes by group, border colour by scope and border weight by complexity.\nContract with A3 and A5: every SVG node group carries id=\"node-\u003cid>\".\n", "scope": "L", "amount": "F", "complexity": "M", "verify": "tests/test_dot.py", "decisions": [], "unguarded": false, "deps": [{"id": "A0", "seam": "build"}], "dependents": [{"id": "A3", "seam": "build"}, {"id": "A5", "seam": "runtime"}]}, "A3": {"id": "A3", "title": "HTML view: zoom, pan, pinch, click → modal", "kind": "atom", "status": "done", "group": "graph", "notes": "One self-contained file, no CDN. Node data travels as escaped JSON; the modal fills via textContent only, never innerHTML. A Content-Security-Policy admits the one script and the one style block by hash.\nGesture handling is a DOM-free core, tested under Node.\n", "scope": "L", "amount": "F", "complexity": "H", "verify": "tests/test_html.py, tests/test_gestures.py", "decisions": [], "unguarded": false, "deps": [{"id": "A0", "seam": "build"}, {"id": "A2", "seam": "build"}], "dependents": [{"id": "M1", "seam": "build"}]}, "A4": {"id": "A4", "title": "Markdown table export", "kind": "atom", "status": "done", "group": "main", "notes": "The view GitHub can render. Pipes and newlines in cells are escaped.", "scope": "I", "amount": "1", "complexity": "E", "verify": "tests/test_views_md_pdf.py", "decisions": [], "unguarded": false, "deps": [{"id": "A1", "seam": "build"}], "dependents": [{"id": "M1", "seam": "build"}]}, "A5": {"id": "A5", "title": "PDF view: graph + caption + field notes", "kind": "atom", "status": "done", "group": "main", "notes": "WeasyPrint, no JavaScript: the static stand-in for the modals.\nRuntime seam on A2 because it consumes the SVG A2 produces, not A2's code.\n", "scope": "I", "amount": "1", "complexity": "E", "verify": "tests/test_views_md_pdf.py", "decisions": [], "unguarded": false, "deps": [{"id": "A0", "seam": "build"}, {"id": "A2", "seam": "runtime"}], "dependents": [{"id": "M1", "seam": "build"}]}, "M1": {"id": "M1", "title": "CLI build + end-to-end test", "kind": "merge", "status": "done", "group": "main", "notes": "python -m weaver build PLAN.toml -o out/ → PLAN.html, PLAN.md, PLAN.pdf, plan.svg.\nThe end-to-end test is the oracle for the merge.\n", "scope": "P", "amount": "F", "complexity": "E", "verify": "tests/test_cli.py", "decisions": [], "unguarded": false, "deps": [{"id": "A1", "seam": "build"}, {"id": "A3", "seam": "build"}, {"id": "A4", "seam": "build"}, {"id": "A5", "seam": "build"}], "dependents": []}}}</script>
+<script type="application/json" id="plan-data">{"terms": {"scope": {"I": "independent", "L": "local", "P": "project", "U": "umbrella", "G": "global", "?": "unknowable"}, "amount": {"1": "one", "F": "few", "N": "numerous", "B": "bulk", "S": "stream", "?": "unknowable"}, "complexity": {"T": "trivial", "E": "easy", "M": "moderate", "H": "hard", "N": "novel", "?": "unknowable"}}, "nodes": {"A0": {"id": "A0", "title": "Data contract: Plan model + TOML schema", "kind": "atom", "status": "done", "status_label": "✓ done", "group": "main", "notes": "The contract every other atom builds against: Plan, Node, Dep, Edge in weaver/model.py, plus this file as the schema example.\nLands first, so the parallel strands share no other file.\n", "scope": "P", "amount": "F", "complexity": "M", "verify": "tests/test_load.py", "decisions": [], "unguarded": false, "deps": [], "dependents": [{"id": "A1", "seam": "build"}, {"id": "A2", "seam": "build"}, {"id": "A3", "seam": "build"}, {"id": "A5", "seam": "build"}]}, "A1": {"id": "A1", "title": "Loader + validator", "kind": "atom", "status": "done", "status_label": "✓ done", "group": "main", "notes": "load_plan / parse_plan. Reports every error in one run: unknown keys, bad ids, kinds, statuses and codes, unknown or duplicate deps, self-deps, cycles (with the path), a missing or unknown schema version.\n", "scope": "L", "amount": "N", "complexity": "M", "verify": "tests/test_load.py", "decisions": [], "unguarded": false, "deps": [{"id": "A0", "seam": "build"}], "dependents": [{"id": "A4", "seam": "build"}, {"id": "M1", "seam": "build"}]}, "A2": {"id": "A2", "title": "Graphviz export: .dot + SVG", "kind": "atom", "status": "done", "status_label": "✓ done", "group": "graph", "notes": "Shape by kind (atom vs merge), line style by seam (build solid, runtime dashed), fill by status, lanes by group, border colour by scope and border weight by complexity.\nContract with A3 and A5: every SVG node group carries id=\"node-\u003cid>\".\n", "scope": "L", "amount": "F", "complexity": "M", "verify": "tests/test_dot.py", "decisions": [], "unguarded": false, "deps": [{"id": "A0", "seam": "build"}], "dependents": [{"id": "A3", "seam": "build"}, {"id": "A5", "seam": "runtime"}]}, "A3": {"id": "A3", "title": "HTML view: zoom, pan, pinch, click → modal", "kind": "atom", "status": "done", "status_label": "✓ done", "group": "graph", "notes": "One self-contained file, no CDN. Node data travels as escaped JSON; the modal fills via textContent only, never innerHTML. A Content-Security-Policy admits the one script and the one style block by hash.\nGesture handling is a DOM-free core, tested under Node.\n", "scope": "L", "amount": "F", "complexity": "H", "verify": "tests/test_html.py, tests/test_gestures.py", "decisions": [], "unguarded": false, "deps": [{"id": "A0", "seam": "build"}, {"id": "A2", "seam": "build"}], "dependents": [{"id": "M1", "seam": "build"}]}, "A4": {"id": "A4", "title": "Markdown table export", "kind": "atom", "status": "done", "status_label": "✓ done", "group": "main", "notes": "The view GitHub can render. Pipes and newlines in cells are escaped.", "scope": "I", "amount": "1", "complexity": "E", "verify": "tests/test_views_md_pdf.py", "decisions": [], "unguarded": false, "deps": [{"id": "A1", "seam": "build"}], "dependents": [{"id": "M1", "seam": "build"}]}, "A5": {"id": "A5", "title": "PDF view: graph + caption + field notes", "kind": "atom", "status": "done", "status_label": "✓ done", "group": "main", "notes": "WeasyPrint, no JavaScript: the static stand-in for the modals.\nRuntime seam on A2 because it consumes the SVG A2 produces, not A2's code.\n", "scope": "I", "amount": "1", "complexity": "E", "verify": "tests/test_views_md_pdf.py", "decisions": [], "unguarded": false, "deps": [{"id": "A0", "seam": "build"}, {"id": "A2", "seam": "runtime"}], "dependents": [{"id": "M1", "seam": "build"}]}, "M1": {"id": "M1", "title": "CLI build + end-to-end test", "kind": "merge", "status": "done", "status_label": "✓ done", "group": "main", "notes": "python -m weaver build PLAN.toml -o out/ → PLAN.html, PLAN.md, PLAN.pdf, plan.svg.\nThe end-to-end test is the oracle for the merge.\n", "scope": "P", "amount": "F", "complexity": "E", "verify": "tests/test_cli.py", "decisions": [], "unguarded": false, "deps": [{"id": "A1", "seam": "build"}, {"id": "A3", "seam": "build"}, {"id": "A4", "seam": "build"}, {"id": "A5", "seam": "build"}], "dependents": []}}}</script>
 <script>
 "use strict";
 const makeGestures = ({ pan, zoom }) => {
@@ -361,7 +364,7 @@ const makeGestures = ({ pan, zoom }) => {
     field("id").textContent = node.id;
     field("title").textContent = node.title;
     field("kind").textContent = node.kind;
-    field("status").textContent = node.status;
+    field("status").textContent = node.status_label;
     field("group").textContent = node.group || "—";
     for (const name of ["scope", "amount", "complexity"]) {
       const code = node[name];
