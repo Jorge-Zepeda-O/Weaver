@@ -14,7 +14,7 @@ import re
 from html import escape
 from typing import Any
 
-from .dot import _FILL, COMPLEXITY_WIDTH, RELEASE_COLOUR, SCOPE_COLOUR
+from .dot import _FILL, AMOUNT_OUTLINES, COMPLEXITY_WIDTH, RELEASE_COLOUR, SCOPE_COLOUR
 from .model import DIMENSIONS, STATUS_SYMBOL, Plan
 from .tokens import LIGHT, css_variables
 
@@ -302,6 +302,15 @@ def _swatch(shape: str = "box", fill: str = LIGHT["canvas"], stroke: str = LIGHT
     return f'<svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true">{body}</svg>'
 
 
+def _outlines_swatch(count: int) -> str:
+    """D-16's key: one rectangle per outline, nested like Graphviz's peripheries."""
+    rects = "".join(
+        f'<rect x="{1 + 1.4 * i:g}" y="{1 + 1.4 * i:g}" width="{20 - 2.8 * i:g}" '
+        f'height="{14 - 2.8 * i:g}" rx="2" fill="none" stroke="{LIGHT["ink"]}" stroke-width="0.8"/>'
+        for i in range(count))
+    return f'<svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true">{rects}</svg>'
+
+
 def _legend() -> str:
     def items(entries: list[tuple[str, str]]) -> str:
         return "".join(f"<span>{swatch}{escape(text)}</span>" for swatch, text in entries)
@@ -318,7 +327,8 @@ def _legend() -> str:
                                          for c, n in DIMENSIONS["scope"].items()])),
         ("Complexity (border weight)", items([(_swatch(width=COMPLEXITY_WIDTH[c]), f"{c} {n}")
                                               for c, n in DIMENSIONS["complexity"].items()])),
-        ("Amount (printed)", items([("", f"{c} {n}") for c, n in DIMENSIONS["amount"].items()])),
+        ("Amount (outlines)", items([(_outlines_swatch(int(AMOUNT_OUTLINES[c])), f"{c} {n}")
+                                     for c, n in DIMENSIONS["amount"].items()])),
         ("In each node", escape("S:scope A:amount C:complexity; - unassessed, "
                                 "? assessed but unknowable (ranks worst)")),
     ]

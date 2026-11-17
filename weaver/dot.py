@@ -31,6 +31,9 @@ RELEASE_COLOUR = LIGHT["release"]
 # Heat scale, cool to hot; "?" ranks worst, so it sits past global.
 SCOPE_COLOUR = {code: LIGHT[f"scope-{'unknown' if code == '?' else code}"] for code in "ILPUG?"}
 COMPLEXITY_WIDTH = {"T": "1", "E": "1.5", "M": "2.5", "H": "3.5", "N": "5", "?": "5"}
+# D-16: amount is the number of outlines, uncapped on purpose: a huge node should look
+# like a wall and ask to be broken down. "?" ranks worst, as many as stream.
+AMOUNT_OUTLINES = {"1": "1", "F": "2", "N": "3", "B": "4", "S": "5", "?": "5"}
 LANE_COLOUR = LIGHT["lane"]
 _PROLOG = re.compile(r"<\?xml[^>]*\?>|<!DOCTYPE[^>]*>")
 # Graphviz 2.43 writes '-' in attribute values as '&#45;'; ids and classes are restored
@@ -73,6 +76,8 @@ def _node_statement(node: Node, indent: str = "  ") -> str:
         attrs.append(f'color="{SCOPE_COLOUR[node.scope]}"')
     if node.complexity:
         attrs.append(f"penwidth={COMPLEXITY_WIDTH[node.complexity]}")
+    if node.amount:
+        attrs.append(f"peripheries={AMOUNT_OUTLINES[node.amount]}")
     return f'{indent}"{node.id}" [{", ".join(attrs)}];'
 
 

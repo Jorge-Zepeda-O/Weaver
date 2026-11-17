@@ -147,10 +147,28 @@ class TestSchemaV1Dot(unittest.TestCase):
                 dot = to_dot(_plan({"id": "a", "title": "x", "complexity": code}))
                 self.assertIn(f"penwidth={width}", _statement(dot, "a"))
 
+    def test_amount_sets_the_number_of_outlines(self):
+        """D-16: uncapped on purpose; '?' ranks worst, as many outlines as stream."""
+        cases = [("1", "1"), ("F", "2"), ("N", "3"), ("B", "4"), ("S", "5"), ("?", "5")]
+        for code, count in cases:
+            with self.subTest(code):
+                dot = to_dot(_plan({"id": "a", "title": "x", "amount": code}))
+                self.assertIn(f"peripheries={count}", _statement(dot, "a"))
+
+    def test_outlines_apply_to_every_kind(self):
+        plan = parse_plan({"plan": {"schema": 2, "title": "T"}, "node": [
+            {"id": k, "title": k, "kind": k, "verify": "v", "amount": "N"}
+            for k in ("atom", "merge", "release")]})
+        dot = to_dot(plan)
+        for kind in ("atom", "merge", "release"):
+            with self.subTest(kind):
+                self.assertIn("peripheries=3", _statement(dot, kind))
+
     def test_unassessed_dimensions_leave_the_border_alone(self):
         statement = _statement(to_dot(_plan({"id": "a", "title": "x"})), "a")
         self.assertNotIn("color=", statement.replace("fillcolor=", ""))
         self.assertNotIn("penwidth", statement)
+        self.assertNotIn("peripheries", statement)
 
     def test_label_prints_the_codes_so_colour_is_never_alone(self):
         dot = to_dot(_plan({"id": "a", "title": "x", "scope": "L", "complexity": "M"}))

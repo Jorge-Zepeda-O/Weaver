@@ -129,6 +129,13 @@ class TestSchemaV1Page(unittest.TestCase):
             with self.subTest(code):
                 self.assertIn(code, re.sub(r"<[^>]+>", " ", legend).replace("  ", " "))
 
+    def test_legend_draws_amount_as_outlines(self):
+        page = build_html(_plan({"id": "a", "title": "x"}), "<svg></svg>")
+        legend = re.search(r'<details id="legend">(.*?)</details>', page, re.S).group(1)
+        row = re.search(r"<dt>Amount \(outlines\)</dt><dd>(.*?)</dd>", legend).group(1)
+        counts = [len(re.findall(r"<rect ", svg)) for svg in re.findall(r"<svg.*?</svg>", row)]
+        self.assertEqual(counts, [1, 2, 3, 4, 5, 5])
+
     def test_panel_shows_status_as_symbol_and_word(self):
         page = build_html(_plan({"id": "a", "title": "x", "status": "done"}), "<svg></svg>")
         self.assertEqual(_data(page)["nodes"]["a"]["status_label"], "✓ done")
