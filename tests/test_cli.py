@@ -54,6 +54,32 @@ class TestBuild(unittest.TestCase):
         self.assertEqual((self.out / "PLAN.pdf").read_bytes()[:5], b"%PDF-")
 
 
+class TestCommittedExample(unittest.TestCase):
+    """docs/example/ is what the README shows; it must match the example plan.
+
+    Regenerate with: python -m weaver build examples/weaver_plan.toml -o docs/example/
+    """
+    DOCS = ROOT / "docs" / "example"
+
+    def test_markdown_is_current(self):
+        from weaver import load_plan
+        from weaver.markdown import to_markdown
+        self.assertEqual((self.DOCS / "PLAN.md").read_text(encoding="utf-8"),
+                         to_markdown(load_plan(EXAMPLE)),
+                         "docs/example/ is stale: rebuild it (see the docstring)")
+
+    def test_every_view_is_committed(self):
+        for name in ["plan.svg", "PLAN.html", "PLAN.md", "PLAN.pdf"]:
+            with self.subTest(name):
+                self.assertTrue((self.DOCS / name).is_file())
+
+    def test_svg_shows_every_node(self):
+        svg = (self.DOCS / "plan.svg").read_text(encoding="utf-8")
+        for node_id in NODE_IDS:
+            with self.subTest(node_id):
+                self.assertIn(f'id="node-{node_id}"', svg)
+
+
 class TestFailures(unittest.TestCase):
     def test_invalid_plan_exits_1_and_names_the_defect(self):
         with tempfile.TemporaryDirectory() as tmp:

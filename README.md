@@ -15,6 +15,12 @@ A plan is a dependency graph of work. Each node is either an **atom** (a unit of
 
 The plan format is the core of the project, and Weaver displays it. The example plan, [`examples/weaver_plan.toml`](examples/weaver_plan.toml), is the plan that built Weaver.
 
+## What it looks like
+
+![The example plan rendered by Weaver: seven nodes in two lanes, converging on one merge](docs/example/plan.svg)
+
+The same plan as [Markdown](docs/example/PLAN.md) and as a [PDF](docs/example/PLAN.pdf). The interactive [`PLAN.html`](docs/example/PLAN.html) has to be downloaded and opened in a browser, because GitHub shows HTML files as source.
+
 ## Running it
 
 ```sh
