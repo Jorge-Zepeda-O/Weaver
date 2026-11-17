@@ -14,7 +14,8 @@ import re
 from html import escape
 from typing import Any
 
-from .dot import _FILL, AMOUNT_OUTLINES, COMPLEXITY_WIDTH, RELEASE_COLOUR, SCOPE_COLOUR
+from .dot import (_FILL, AMOUNT_OUTLINES, COMPLEXITY_COLOUR, COMPLEXITY_WIDTH, RELEASE_COLOUR,
+                  SCOPE_TEXT_COLOUR)
 from .model import DIMENSIONS, STATUS_SYMBOL, Plan
 from .tokens import LIGHT, css_variables
 
@@ -302,6 +303,13 @@ def _swatch(shape: str = "box", fill: str = LIGHT["canvas"], stroke: str = LIGHT
     return f'<svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true">{body}</svg>'
 
 
+def _text_swatch(colour: str) -> str:
+    """Scope's key: a sample of text in its colour, as the node's text is drawn."""
+    return (f'<svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true">'
+            f'<text x="11" y="12.5" text-anchor="middle" font-size="12" font-weight="bold" '
+            f'font-family="sans-serif" fill="{colour}">Aa</text></svg>')
+
+
 def _outlines_swatch(count: int) -> str:
     """D-16's key: one rectangle per outline, nested like Graphviz's peripheries."""
     rects = "".join(
@@ -323,10 +331,11 @@ def _legend() -> str:
                                 (_swatch("octagon", stroke=RELEASE_COLOUR), "release")])),
         ("Seam (edge)", items([(_swatch("line"), "build seam"),
                                (_swatch("line", dashed=True), "runtime seam")])),
-        ("Scope (border colour)", items([(_swatch(stroke=SCOPE_COLOUR[c], width="2.5"), f"{c} {n}")
-                                         for c, n in DIMENSIONS["scope"].items()])),
-        ("Complexity (border weight)", items([(_swatch(width=COMPLEXITY_WIDTH[c]), f"{c} {n}")
-                                              for c, n in DIMENSIONS["complexity"].items()])),
+        ("Scope (text colour)", items([(_text_swatch(SCOPE_TEXT_COLOUR[c]), f"{c} {n}")
+                                       for c, n in DIMENSIONS["scope"].items()])),
+        ("Complexity (border colour, weight)",
+         items([(_swatch(stroke=COMPLEXITY_COLOUR[c], width=COMPLEXITY_WIDTH[c]), f"{c} {n}")
+                for c, n in DIMENSIONS["complexity"].items()])),
         ("Amount (outlines)", items([(_outlines_swatch(int(AMOUNT_OUTLINES[c])), f"{c} {n}")
                                      for c, n in DIMENSIONS["amount"].items()])),
         ("In each node", escape("↕scope (reach) ↔amount (breadth) ⤓complexity (depth); - unassessed, "

@@ -4,10 +4,10 @@ Every node statement carries ``id="node-<id>"``, so the SVG group for node X
 is ``<g id="node-X" class="node">``. That id is the contract with the HTML view
 (A3) and the PDF view (A5).
 
-Encoding: shape = kind, fill = status, edge style = seam, lane = group, border
-colour = scope, border weight = complexity, dashed border = unguarded merge.
-The dimension codes are printed in the label too, so colour never carries
-meaning alone.
+Encoding: shape = kind, fill = status, edge style = seam, lane = group, text
+colour = scope, border colour and weight = complexity, outline count = amount,
+dashed border = unguarded merge. Status and the dimension codes are printed in
+the label too, so colour never carries meaning alone.
 """
 from __future__ import annotations
 
@@ -26,10 +26,18 @@ TITLE_WIDTH = 28
 _FILL = {status: LIGHT[f"status-{status}"] for status in STATUSES}
 _SHAPE = {"atom": ("box", "rounded,filled"), "merge": ("hexagon", "filled"),
           "release": ("octagon", "filled")}
-# A release's text is purple; its border stays scope's (D-15). Shape marks it too.
+# A release's text is bold purple, a colour no scope uses (D-15); its scope stays in the code.
 RELEASE_COLOUR = LIGHT["release"]
-# Heat scale, cool to hot; "?" ranks worst, so it sits past global.
-SCOPE_COLOUR = {code: LIGHT[f"scope-{'unknown' if code == '?' else code}"] for code in "ILPUG?"}
+
+
+def _token_map(prefix: str, codes: str) -> dict[str, str]:
+    return {c: LIGHT[f"{prefix}-{'unknown' if c == '?' else c}"] for c in codes}
+
+
+# D-18: the border is the node's weight (complexity: colour and width, so it never rests on
+# colour vision alone); the text is its reach (scope). "?" ranks worst in both.
+SCOPE_TEXT_COLOUR = _token_map("scope-text", "ILPUG?")
+COMPLEXITY_COLOUR = _token_map("complexity", "TEMHN?")
 COMPLEXITY_WIDTH = {"T": "1", "E": "1.5", "M": "2.5", "H": "3.5", "N": "5", "?": "5"}
 # D-16: amount is the number of outlines, uncapped on purpose: a huge node should look
 # like a wall and ask to be broken down. "?" ranks worst, as many as stream.
@@ -71,11 +79,12 @@ def _node_statement(node: Node, indent: str = "  ") -> str:
              f"shape={shape}", f"style={style_attr}",
              f'fillcolor="{_FILL[node.status]}"']
     if node.kind == "release":
-        attrs.append(f'fontcolor="{RELEASE_COLOUR}"')
-    if node.scope:
-        attrs.append(f'color="{SCOPE_COLOUR[node.scope]}"')
+        attrs += [f'fontcolor="{RELEASE_COLOUR}"', 'fontname="Helvetica-Bold"']
+    elif node.scope:
+        attrs.append(f'fontcolor="{SCOPE_TEXT_COLOUR[node.scope]}"')
     if node.complexity:
-        attrs.append(f"penwidth={COMPLEXITY_WIDTH[node.complexity]}")
+        attrs += [f'color="{COMPLEXITY_COLOUR[node.complexity]}"',
+                  f"penwidth={COMPLEXITY_WIDTH[node.complexity]}"]
     if node.amount:
         attrs.append(f"peripheries={AMOUNT_OUTLINES[node.amount]}")
     return f'{indent}"{node.id}" [{", ".join(attrs)}];'

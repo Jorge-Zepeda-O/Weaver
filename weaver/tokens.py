@@ -17,9 +17,17 @@ LIGHT: dict[str, str] = {
     "status-todo": "#ffffff", "status-done": "#d1fae5",
     "status-doing": "#bfdbfe", "status-blocked": "#fca5a5",
     # Scope: cool to hot, the hues of the Task Dimension glyphs (blue green yellow orange red).
-    # Unknown ranks worst, so it sits past global.
+    # Unknown ranks worst, so it sits past global. Bright shades for swatches and panel cells
+    # (and, later, text on a dark canvas); the darker text shades meet WCAG AA on white.
     "scope-I": "#2563eb", "scope-L": "#16a34a", "scope-P": "#ca8a04",
     "scope-U": "#ea580c", "scope-G": "#dc2626", "scope-unknown": "#7f1d1d",
+    "scope-text-I": "#1d4ed8", "scope-text-L": "#15803d", "scope-text-P": "#a16207",
+    "scope-text-U": "#c2410c", "scope-text-G": "#b91c1c", "scope-text-unknown": "#7f1d1d",
+    # Complexity: the border's colour, calm to alarming like its glyphs (white, white, orange,
+    # red, explosion). Unknown ranks worst, as novel.
+    "complexity-T": "#94a3b8", "complexity-E": "#64748b", "complexity-M": "#ea580c",
+    "complexity-H": "#dc2626", "complexity-N": "#7f1d1d", "complexity-unknown": "#7f1d1d",
+    # Purple is in no scope colour, so a release's text stays unique.
     "release": "#7e22ce",
     # Print: near-black text, a muted grey for keys and metadata.
     "print-ink": "#111111", "print-muted": "#555555",

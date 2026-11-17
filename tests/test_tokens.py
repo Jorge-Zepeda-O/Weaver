@@ -56,11 +56,37 @@ class TestTokens(unittest.TestCase):
         self.assertGreaterEqual(min(gaps), 0.04, values)
 
     def test_graphviz_uses_the_token_values(self):
-        from weaver.dot import SCOPE_COLOUR, _FILL
+        from weaver.dot import COMPLEXITY_COLOUR, SCOPE_TEXT_COLOUR, _FILL
         from weaver.tokens import LIGHT
-        self.assertEqual(SCOPE_COLOUR, {c: LIGHT[f"scope-{c if c != '?' else 'unknown'}"]
-                                        for c in "ILPUG?"})
+
+        def key(c: str) -> str:
+            return "unknown" if c == "?" else c
+        self.assertEqual(SCOPE_TEXT_COLOUR, {c: LIGHT[f"scope-text-{key(c)}"] for c in "ILPUG?"})
+        self.assertEqual(COMPLEXITY_COLOUR, {c: LIGHT[f"complexity-{key(c)}"] for c in "TEMHN?"})
         self.assertEqual(_FILL, {s: LIGHT[f"status-{s}"] for s in _FILL})
+
+    def test_scope_text_keeps_the_scope_hues(self):
+        from weaver.tokens import LIGHT
+        for code in "ILPUG":
+            with self.subTest(code):
+                bright, text = _hue(LIGHT[f"scope-{code}"]), _hue(LIGHT[f"scope-text-{code}"])
+                self.assertLess(min(abs(bright - text), 360 - abs(bright - text)), 15)
+
+    def test_scope_text_is_readable_on_the_canvas(self):
+        """WCAG AA for normal text: 4.5:1 against the white canvas."""
+        from weaver.tokens import LIGHT
+
+        def luminance(c: str) -> float:
+            def channel(v: float) -> float:
+                return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+            r, g, b = (channel(int(c[i:i + 2], 16) / 255) for i in (1, 3, 5))
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+        canvas = luminance(LIGHT["canvas"])
+        for code in ["I", "L", "P", "U", "G", "unknown"]:
+            with self.subTest(code):
+                text = luminance(LIGHT[f"scope-text-{code}"])
+                self.assertGreaterEqual((canvas + 0.05) / (text + 0.05), 4.5)
 
     def test_page_and_pdf_carry_the_variables(self):
         from weaver import parse_plan

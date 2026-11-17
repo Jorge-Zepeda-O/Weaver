@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 from weaver import load_plan, parse_plan
-from weaver.dot import RELEASE_COLOUR, SCOPE_COLOUR, TITLE_WIDTH, render_svg, to_dot
+from weaver.dot import RELEASE_COLOUR, TITLE_WIDTH, render_svg, to_dot
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "weaver_plan.toml"
 SVG_NS = "{http://www.w3.org/2000/svg}"
@@ -44,14 +44,18 @@ class TestToDot(unittest.TestCase):
             with self.subTest(node_id):
                 self.assertIn(expected, _statement(dot, node_id))
 
-    def test_release_is_an_octagon_with_purple_text(self):
-        """D-15: shape and colour both mark a release, so neither is alone."""
+    def test_release_is_an_octagon_with_bold_purple_text(self):
+        """D-15: shape, colour and weight mark a release; purple is in no scope colour."""
         plan = parse_plan({"plan": {"schema": 2, "title": "T"}, "node": [
-            {"id": "r", "title": "v1", "kind": "release", "verify": "tag", "scope": "P"}]})
+            {"id": "r", "title": "v1", "kind": "release", "verify": "tag", "scope": "P",
+             "complexity": "E"}]})
         statement = _statement(to_dot(plan), "r")
         self.assertIn("shape=octagon, style=filled", statement)
         self.assertIn(f'fontcolor="{RELEASE_COLOUR}"', statement)
-        self.assertIn(f'color="{SCOPE_COLOUR["P"]}"', statement, "scope still owns the border")
+        self.assertEqual(statement.count("fontcolor="), 1, "the release colour wins over scope's")
+        self.assertIn('fontname="Helvetica-Bold"', statement)
+        self.assertIn(' color="#64748b"', statement, "complexity still owns the border")
+        self.assertIn("↕P", statement, "scope stays readable in the code")
 
     def test_fill_follows_status(self):
         cases = [("todo", "#ffffff"), ("doing", "#bfdbfe"), ("done", "#d1fae5"), ("blocked", "#fca5a5")]
@@ -132,13 +136,24 @@ class TestSchemaV1Dot(unittest.TestCase):
         dot = to_dot(_plan({"id": "m", "title": "y", "kind": "merge"}))
         self.assertIn('shape=hexagon, style="filled,dashed"', _statement(dot, "m"))
 
-    def test_scope_sets_the_border_colour(self):
-        cases = [("I", "#2563eb"), ("L", "#16a34a"), ("P", "#ca8a04"), ("U", "#ea580c"),
-                 ("G", "#dc2626"), ("?", "#7f1d1d")]
+    def test_scope_sets_the_text_colour(self):
+        """D-18: scope is reach, shown in the text; the darker shades keep it readable."""
+        cases = [("I", "#1d4ed8"), ("L", "#15803d"), ("P", "#a16207"), ("U", "#c2410c"),
+                 ("G", "#b91c1c"), ("?", "#7f1d1d")]
         for code, colour in cases:
             with self.subTest(code):
-                dot = to_dot(_plan({"id": "a", "title": "x", "scope": code}))
-                self.assertIn(f'color="{colour}"', _statement(dot, "a"))
+                statement = _statement(to_dot(_plan({"id": "a", "title": "x", "scope": code})), "a")
+                self.assertIn(f'fontcolor="{colour}"', statement)
+                self.assertNotIn(' color="', statement, "scope no longer colours the border")
+
+    def test_complexity_sets_the_border_colour(self):
+        """D-18: the border is the node's weight: calm grey to red, like the complexity glyphs."""
+        cases = [("T", "#94a3b8"), ("E", "#64748b"), ("M", "#ea580c"), ("H", "#dc2626"),
+                 ("N", "#7f1d1d"), ("?", "#7f1d1d")]
+        for code, colour in cases:
+            with self.subTest(code):
+                dot = to_dot(_plan({"id": "a", "title": "x", "complexity": code}))
+                self.assertIn(f' color="{colour}"', _statement(dot, "a"))
 
     def test_complexity_sets_the_border_weight(self):
         cases = [("T", "1"), ("E", "1.5"), ("M", "2.5"), ("H", "3.5"), ("N", "5"), ("?", "5")]
