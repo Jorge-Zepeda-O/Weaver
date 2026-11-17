@@ -32,9 +32,21 @@ SCOPE_COLOUR = {"I": "#2563eb", "L": "#0891b2", "P": "#ca8a04", "U": "#ea580c",
 COMPLEXITY_WIDTH = {"T": "1", "E": "1.5", "M": "2.5", "H": "3.5", "N": "5", "?": "5"}
 LANE_COLOUR = "#94a3b8"
 _PROLOG = re.compile(r"<\?xml[^>]*\?>|<!DOCTYPE[^>]*>")
-# Graphviz 2.43 writes '-' in attribute values as '&#45;'; ids are restored to
-# their literal form so the contract holds for text matching as well as for parsers.
-_ID_ATTR = re.compile(r' id="([^"]*)"')
+# Graphviz 2.43 writes '-' in attribute values as '&#45;'; ids and classes are restored
+# to their literal form so the contract holds for text matching as well as for parsers.
+_ID_OR_CLASS_ATTR = re.compile(r' (id|class)="([^"]*)"')
+
+
+def node_classes(node: Node) -> str:
+    """Classes for the page's stylesheet (D-13); ``?`` becomes ``unknown`` to stay a plain CSS name."""
+    classes = [f"kind-{node.kind}", f"status-{node.status}"]
+    for name in ("scope", "amount", "complexity"):
+        code = getattr(node, name)
+        if code:
+            classes.append(f"{name}-{'unknown' if code == '?' else code}")
+    if node.unguarded:
+        classes.append("unguarded")
+    return " ".join(classes)
 
 
 def _quote(text: str) -> str:
@@ -50,7 +62,8 @@ def _node_statement(node: Node, indent: str = "  ") -> str:
     if node.unguarded:
         style += ",dashed"
     style_attr = f'"{style}"' if "," in style else style
-    attrs = [f'id="node-{node.id}"', f"label={label}", f"shape={shape}", f"style={style_attr}",
+    attrs = [f'id="node-{node.id}"', f'class="{node_classes(node)}"', f"label={label}",
+             f"shape={shape}", f"style={style_attr}",
              f'fillcolor="{_FILL[node.status]}"']
     if node.kind == "release":
         attrs.append(f'fontcolor="{RELEASE_COLOUR}"')
@@ -73,13 +86,14 @@ def to_dot(plan: Plan) -> str:
     for index, group in enumerate(plan.groups()):
         lines += [f'  subgraph "cluster_{index}" {{',
                   f"    label={_quote(group)};",
+                  '    class="lane";',
                   f'    style="rounded,dashed"; color="{LANE_COLOUR}"; fontcolor="#475569";']
         lines += [_node_statement(n, "    ") for n in plan.nodes if n.group == group]
         lines.append("  }")
     lines += [_node_statement(n) for n in plan.nodes if not n.group]
     for edge in plan.edges():
-        style = " [style=dashed]" if edge.seam == "runtime" else ""
-        lines.append(f'  "{edge.source}" -> "{edge.target}"{style};')
+        style = ", style=dashed" if edge.seam == "runtime" else ""
+        lines.append(f'  "{edge.source}" -> "{edge.target}" [class="seam-{edge.seam}"{style}];')
     lines.append("}")
     return "\n".join(lines) + "\n"
 
@@ -94,5 +108,6 @@ def render_svg(plan: Plan) -> str:
     if result.returncode != 0:
         raise RuntimeError(f"dot exited with {result.returncode}: {result.stderr.strip()}")
     svg = _PROLOG.sub("", result.stdout)
-    svg = _ID_ATTR.sub(lambda m: ' id="' + m.group(1).replace("&#45;", "-") + '"', svg)
+    svg = _ID_OR_CLASS_ATTR.sub(lambda m: f' {m.group(1)}="' + m.group(2).replace("&#45;", "-") + '"',
+                                svg)
     return svg.strip() + "\n"

@@ -21,6 +21,10 @@ def _statement(dot: str, node_id: str) -> str:
     return line
 
 
+def _classes(element: ET.Element) -> set[str]:
+    return set(element.get("class", "").split())
+
+
 class TestToDot(unittest.TestCase):
     def test_layout_is_left_to_right(self):
         self.assertIn("rankdir=LR;", to_dot(_plan({"id": "a", "title": "x"})))
@@ -60,8 +64,8 @@ class TestToDot(unittest.TestCase):
         dot = to_dot(_plan({"id": "a", "title": "x"}, {"id": "b", "title": "y"},
                            {"id": "c", "title": "z", "deps": ["a"], "runtime_deps": ["b"]}))
         lines = [ln.strip() for ln in dot.splitlines()]
-        self.assertIn('"a" -> "c";', lines, "build seam must be a plain solid edge")
-        self.assertIn('"b" -> "c" [style=dashed];', lines)
+        self.assertIn('"a" -> "c" [class="seam-build"];', lines, "build seam must be a plain solid edge")
+        self.assertIn('"b" -> "c" [class="seam-runtime", style=dashed];', lines)
 
     def test_label_is_id_then_title(self):
         dot = to_dot(_plan({"id": "a", "title": "Do it"}))
@@ -168,7 +172,7 @@ class TestLayoutReadsLeftToRight(unittest.TestCase):
     def _node_x(svg: str) -> dict[str, float]:
         root = ET.fromstring(svg)
         return {g.get("id").removeprefix("node-"): float(g.find(f"{SVG_NS}text").get("x"))
-                for g in root.iter(f"{SVG_NS}g") if g.get("class") == "node"}
+                for g in root.iter(f"{SVG_NS}g") if "node" in _classes(g)}
 
     def test_no_edge_points_backwards(self):
         def node(i, group, deps=(), kind="atom"):
@@ -193,7 +197,7 @@ class TestRenderSvg(unittest.TestCase):
 
     def test_contract_id_survives_xml_parsing(self):
         groups = ET.fromstring(self.svg).iter(f"{SVG_NS}g")
-        ids = {g.get("id") for g in groups if g.get("class") == "node"}
+        ids = {g.get("id") for g in groups if "node" in _classes(g)}
         self.assertEqual(ids, {f"node-{n.id}" for n in self.plan.nodes})
 
     def test_prolog_and_doctype_are_removed(self):
@@ -202,7 +206,7 @@ class TestRenderSvg(unittest.TestCase):
         self.assertNotIn("<!DOCTYPE", self.svg)
 
     def test_runtime_edge_renders_dashed(self):
-        match = re.search(r'<g id="edge\d+" class="edge">\s*<title>A2&#45;&gt;A5</title>\s*<path [^>]*>',
+        match = re.search(r'<g id="edge\d+" class="edge[^"]*">\s*<title>A2&#45;&gt;A5</title>\s*<path [^>]*>',
                           self.svg)
         self.assertIsNotNone(match, "edge A2->A5 not found")
         self.assertIn("stroke-dasharray", match.group(0))
@@ -218,6 +222,47 @@ class TestRenderSvg(unittest.TestCase):
             with self.assertRaises(RuntimeError) as ctx:
                 render_svg(self.plan)
         self.assertIn("syntax error", str(ctx.exception))
+
+
+class TestSvgClasses(unittest.TestCase):
+    """B1/D-13: every node, edge and lane carries classes the page's stylesheet can target."""
+
+    @classmethod
+    def setUpClass(cls):
+        plan = parse_plan({"plan": {"schema": 2, "title": "T"}, "node": [
+            {"id": "a-1", "title": "A", "status": "done", "group": "side-lane",
+             "scope": "L", "amount": "1", "complexity": "?"},
+            {"id": "m", "title": "M", "kind": "merge", "deps": ["a-1"]},
+            {"id": "r", "title": "R", "kind": "release", "verify": "tag", "runtime_deps": ["m"]}]})
+        cls.svg = render_svg(plan)
+        cls.groups = list(ET.fromstring(cls.svg).iter(f"{SVG_NS}g"))
+
+    def _node(self, node_id: str) -> set[str]:
+        (group,) = [g for g in self.groups if g.get("id") == f"node-{node_id}"]
+        return _classes(group)
+
+    def test_node_classes_name_kind_status_and_dimensions(self):
+        self.assertEqual(self._node("a-1"),
+                         {"node", "kind-atom", "status-done", "scope-L", "amount-1",
+                          "complexity-unknown"})
+
+    def test_unassessed_dimensions_add_no_class(self):
+        self.assertEqual(self._node("m"), {"node", "kind-merge", "status-todo", "unguarded"})
+
+    def test_release_classes(self):
+        self.assertEqual(self._node("r"), {"node", "kind-release", "status-todo"})
+
+    def test_edges_carry_their_seam(self):
+        seams = {g.find(f"{SVG_NS}title").text: _classes(g) - {"edge"}
+                 for g in self.groups if "edge" in _classes(g)}
+        self.assertEqual(seams, {"a-1->m": {"seam-build"}, "m->r": {"seam-runtime"}})
+
+    def test_lanes_are_marked(self):
+        lanes = [g for g in self.groups if "cluster" in _classes(g)]
+        self.assertEqual([_classes(g) for g in lanes], [{"cluster", "lane"}])
+
+    def test_no_class_keeps_graphviz_dash_entity(self):
+        self.assertNotRegex(self.svg, r'class="[^"]*&#45;')
 
 
 if __name__ == "__main__":
