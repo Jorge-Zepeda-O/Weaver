@@ -175,8 +175,8 @@ class TestSchemaV1(unittest.TestCase):
                 self.assertEqual(node.status_label(), expected)
 
     def test_dimension_label(self):
-        cases = [({}, ""), ({"scope": "L"}, "S:L A:- C:-"),
-                 ({"scope": "?", "amount": "F", "complexity": "N"}, "S:? A:F C:N")]
+        cases = [({}, ""), ({"scope": "L"}, "↕L ↔- ⤓-"),
+                 ({"scope": "?", "amount": "F", "complexity": "N"}, "↕? ↔F ⤓N")]
         for extra, expected in cases:
             with self.subTest(extra):
                 node = parse_plan(_plan({**self.ok, **extra})).node("a")

@@ -95,7 +95,7 @@ Unknown keys are errors, so a typo fails loudly instead of being ignored.
 | `decisions` | optional | The decisions behind the node, as handles: `D-3`, or `project:D-3` for another project's. Displayed, not looked up. |
 | `notes` | optional | Free text. Always shown as text, never interpreted as HTML. |
 
-**The three dimensions** (`scope`, `amount`, `complexity`) are ordinal scales, from low to high. Each also accepts `?`, meaning *assessed, but unknowable*, which ranks as the worst value. An absent dimension means *not assessed yet*, which is different. The dimensions are shown side by side and never combined into one number, since a product would hide which one dominates. Every node prints its codes, for example `S:L A:- C:M`, so colour never carries meaning alone.
+**The three dimensions** (`scope`, `amount`, `complexity`) are ordinal scales, from low to high. Each also accepts `?`, meaning *assessed, but unknowable*, which ranks as the worst value. An absent dimension means *not assessed yet*, which is different. The dimensions are shown side by side and never combined into one number, since a product would hide which one dominates. Every node prints its codes behind a marker for each dimension's direction, ↕ scope (reach), ↔ amount (breadth), ⤓ complexity (depth): for example `↕L ↔- ⤓M`, so colour never carries meaning alone.
 
 ## Tests
 

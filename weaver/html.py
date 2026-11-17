@@ -329,7 +329,7 @@ def _legend() -> str:
                                               for c, n in DIMENSIONS["complexity"].items()])),
         ("Amount (outlines)", items([(_outlines_swatch(int(AMOUNT_OUTLINES[c])), f"{c} {n}")
                                      for c, n in DIMENSIONS["amount"].items()])),
-        ("In each node", escape("S:scope A:amount C:complexity; - unassessed, "
+        ("In each node", escape("↕scope (reach) ↔amount (breadth) ⤓complexity (depth); - unassessed, "
                                 "? assessed but unknowable (ranks worst)")),
     ]
     body = "".join(f"<dt>{escape(term)}</dt><dd>{dd}</dd>" for term, dd in rows)

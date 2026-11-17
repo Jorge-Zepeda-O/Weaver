@@ -172,7 +172,7 @@ class TestSchemaV1Dot(unittest.TestCase):
 
     def test_label_prints_the_codes_so_colour_is_never_alone(self):
         dot = to_dot(_plan({"id": "a", "title": "x", "scope": "L", "complexity": "M"}))
-        self.assertIn('label="a · ○ todo\\nx\\nS:L A:- C:M"', _statement(dot, "a"))
+        self.assertIn('label="a · ○ todo\\nx\\n↕L ↔- ⤓M"', _statement(dot, "a"))
 
     def test_groups_become_lanes(self):
         dot = to_dot(_plan({"id": "a", "title": "x", "group": "sub-1"},

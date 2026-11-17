@@ -61,7 +61,7 @@ class TestMarkdownV1(unittest.TestCase):
 
     def test_row_cells(self):
         cells = [c.strip() for c in self.rows[0].strip("|").split(" | ")]
-        self.assertEqual(cells[3:7], ["left", "○ todo", "S:L A:- C:M", "tests/test_a.py"])
+        self.assertEqual(cells[3:7], ["left", "○ todo", "↕L ↔- ⤓M", "tests/test_a.py"])
 
     def test_unguarded_merge_says_so(self):
         self.assertIn("| — (unguarded) |", self.rows[2])
@@ -70,7 +70,7 @@ class TestMarkdownV1(unittest.TestCase):
         self.assertIn("### m: Join\n\nDecisions: D-3, other:D-22\n", self.md)
 
     def test_key_explains_the_codes(self):
-        for text in ["S = scope", "I independent", "A = amount", "S stream", "C = complexity",
+        for text in ["↕ scope", "I independent", "↔ amount", "S stream", "⤓ complexity",
                      "N novel", "- unassessed", "? unknowable"]:
             with self.subTest(text):
                 self.assertIn(text, self.md)
@@ -101,8 +101,8 @@ class TestPdf(unittest.TestCase):
                 self.assertIn(expected, self.text)
 
     def test_v1_fields_appear(self):
-        for expected in ["Goal: Both sides joined.", "left", "S:L A:- C:M", "verify: tests/test_a.py",
-                         "decisions: D-3, other:D-22", "unguarded", "S = scope"]:
+        for expected in ["Goal: Both sides joined.", "left", "↕L ↔- ⤓M", "verify: tests/test_a.py",
+                         "decisions: D-3, other:D-22", "unguarded", "↕ scope"]:
             with self.subTest(expected):
                 self.assertIn(expected, self.text)
 

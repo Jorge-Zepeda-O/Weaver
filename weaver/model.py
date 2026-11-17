@@ -47,11 +47,14 @@ DIMENSIONS: dict[str, dict[str, str]] = {
                    "?": "unknowable"},
 }
 UNASSESSED = "-"
+# Each dimension is a direction of the problem: scope is altitude (reach), amount is
+# breadth, complexity is depth. Text arrows, not emoji, so every view's font has them.
+DIMENSION_MARKER: dict[str, str] = {"scope": "↕", "amount": "↔", "complexity": "⤓"}
 
 
 def dimension_key() -> tuple[str, ...]:
     """The printed key to ``Node.dimension_label``, one line per dimension."""
-    return (*(f"{name[0].upper()} = {name}: " + ", ".join(f"{c} {n}" for c, n in codes.items())
+    return (*(f"{DIMENSION_MARKER[name]} {name}: " + ", ".join(f"{c} {n}" for c, n in codes.items())
               for name, codes in DIMENSIONS.items()),
             f"{UNASSESSED} unassessed; ? assessed but unknowable, ranks worst")
 
@@ -87,11 +90,11 @@ class Node:
         return f"{STATUS_SYMBOL[self.status]} {self.status}"
 
     def dimension_label(self) -> str:
-        """``S:L A:- C:M``, or ``""`` when no dimension is assessed."""
+        """``↕L ↔- ⤓M``, or ``""`` when no dimension is assessed."""
         codes = (self.scope, self.amount, self.complexity)
         if not any(codes):
             return ""
-        return " ".join(f"{name[0].upper()}:{code or UNASSESSED}"
+        return " ".join(f"{DIMENSION_MARKER[name]}{code or UNASSESSED}"
                         for name, code in zip(DIMENSIONS, codes))
 
 
