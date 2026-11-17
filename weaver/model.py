@@ -2,8 +2,8 @@
 
 A plan is a dependency graph of work. Nodes are atoms or merge events; every
 edge is a seam, typed by binding time: a build seam (static dependency) or a
-runtime seam (dynamic). Edges are stored on the dependent node, so ``Dep(id="A0")`` on node ``A1``
-means the edge ``A0 -> A1``.
+runtime seam (dynamic). Edges are stored on the dependent node, so
+``Dep(id="A0")`` on node ``A1`` means the edge ``A0 -> A1``.
 
 Every renderer consumes ``Plan`` and nothing else.
 """

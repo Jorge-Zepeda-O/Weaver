@@ -58,8 +58,62 @@ dialog ul { margin: 0; padding-left: 1.1rem; }
   background: var(--bg); border: 1px solid var(--border); }
 """
 
-_SCRIPT = """
+# DOM-free gesture core: pointer events in, pan/zoom calls and a click verdict out.
+# Kept apart from the page wiring so tests can run it under Node.
+_GESTURES = """
 "use strict";
+const makeGestures = ({ pan, zoom }) => {
+  // Movement below this many pixels is a wobbly click, not a drag; fingers wobble more.
+  const slopFor = (type) => (type === "touch" ? 10 : 4);
+  const pointers = new Map();  // pointerId -> last seen {x, y}
+  let start = null;            // where the single-pointer gesture began, with its slop
+  let pinch = null;            // last {dist, mx, my} of a two-pointer gesture
+  let moved = false;           // the current gesture panned or pinched: it is not a click
+
+  const span = () => {
+    const [a, b] = [...pointers.values()];
+    return { dist: Math.hypot(b.x - a.x, b.y - a.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+  };
+
+  return {
+    down(e) {
+      // A primary press starts a new gesture. Clearing here, not on click, means a
+      // drag that ends with no click cannot eat the next tap, and a pointer whose
+      // pointerup was lost cannot pair with this one into a phantom pinch.
+      if (e.primary) { pointers.clear(); moved = false; pinch = null; }
+      pointers.set(e.id, { x: e.x, y: e.y });
+      if (pointers.size === 1) start = { x: e.x, y: e.y, slop: slopFor(e.type) };
+      if (pointers.size === 2) { pinch = span(); moved = true; }
+    },
+    move(e) {
+      const last = pointers.get(e.id);
+      if (!last) return;
+      if (pinch) {
+        last.x = e.x;
+        last.y = e.y;
+        const now = span();
+        if (pinch.dist > 0 && now.dist > 0) zoom(pinch.dist / now.dist, now.mx, now.my);
+        pan(now.mx - pinch.mx, now.my - pinch.my);
+        pinch = now;
+        return;
+      }
+      if (pointers.size !== 1) return;
+      if (!moved && Math.hypot(e.x - start.x, e.y - start.y) < start.slop) return;
+      moved = true;
+      pan(e.x - last.x, e.y - last.y);
+      last.x = e.x;
+      last.y = e.y;
+    },
+    up(e) {
+      pointers.delete(e.id);
+      if (pointers.size < 2) pinch = null;
+    },
+    clickAllowed: () => !moved,
+  };
+};
+"""
+
+_SCRIPT = _GESTURES + """
 (() => {
   const plan = JSON.parse(document.getElementById("plan-data").textContent);
   const viewport = document.getElementById("viewport");
@@ -81,40 +135,41 @@ _SCRIPT = """
     return point.matrixTransform(svg.getScreenCTM().inverse());
   };
 
-  viewport.addEventListener("wheel", (event) => {
-    event.preventDefault();
-    const factor = Math.exp(event.deltaY * (event.deltaMode === 1 ? 0.05 : 0.0015));
+  // factor = new width / old width; the graph point under (clientX, clientY) stays put.
+  const zoomAt = (factor, clientX, clientY) => {
     const width = Math.min(Math.max(view.w * factor, initial.w / 20), initial.w * 5);
     const f = width / view.w;
-    const p = toGraph(event.clientX, event.clientY);  // stays under the cursor
+    const p = toGraph(clientX, clientY);
     view = { x: p.x - (p.x - view.x) * f, y: p.y - (p.y - view.y) * f, w: view.w * f, h: view.h * f };
     apply();
-  }, { passive: false });
-
-  let drag = null;
-  let suppressClick = false;
-  viewport.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) return;
-    drag = { x: event.clientX, y: event.clientY, moved: false };
-  });
-  window.addEventListener("pointermove", (event) => {
-    if (!drag) return;
-    const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
-    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
-    drag.moved = true;
-    viewport.classList.add("dragging");
+  };
+  const panBy = (dx, dy) => {
     const k = unitsPerPixel();
     view.x -= dx * k;
     view.y -= dy * k;
-    drag.x = event.clientX;
-    drag.y = event.clientY;
     apply();
+    viewport.classList.add("dragging");
+  };
+
+  viewport.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    zoomAt(Math.exp(event.deltaY * (event.deltaMode === 1 ? 0.05 : 0.0015)), event.clientX, event.clientY);
+  }, { passive: false });
+
+  const gestures = makeGestures({ pan: panBy, zoom: zoomAt });
+  const pointer = (event) => ({ id: event.pointerId, x: event.clientX, y: event.clientY,
+                                type: event.pointerType, primary: event.isPrimary });
+  viewport.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    gestures.down(pointer(event));
   });
-  window.addEventListener("pointerup", () => {
-    if (drag && drag.moved) suppressClick = true;
-    drag = null;
+  window.addEventListener("pointermove", (event) => gestures.move(pointer(event)));
+  const release = (event) => {
+    gestures.up(pointer(event));
     viewport.classList.remove("dragging");
-  });
+  };
+  window.addEventListener("pointerup", release);
+  window.addEventListener("pointercancel", release);
   document.getElementById("reset-view").addEventListener("click", () => {
     view = { ...initial };
     apply();
@@ -164,7 +219,7 @@ _SCRIPT = """
     });
   }
   viewport.addEventListener("click", (event) => {
-    if (suppressClick) { suppressClick = false; return; }
+    if (!gestures.clickAllowed()) return;
     const group = event.target.closest("g.node");
     if (group) openNode(nodeIdOf(group));
   });
@@ -233,7 +288,7 @@ def build_html(plan: Plan, svg: str) -> str:
 <body>
 <h1>{title}</h1>
 {caption}<div class="toolbar"><button type="button" id="reset-view">Reset view</button>
-<span>Drag to pan, scroll to zoom, click a node for details.</span></div>
+<span>Drag to pan, scroll or pinch to zoom, click a node for details.</span></div>
 <div id="viewport">
 {inline_svg}</div>
 {_DIALOG}
