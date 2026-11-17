@@ -21,7 +21,29 @@ from .tokens import LIGHT, css_variables
 
 _SVG_XMLNS = re.compile(r'\s+xmlns(?::\w+)?="[^"]*"')
 
-_STYLE = css_variables() + """
+_SCOPES = ("I", "L", "P", "U", "G", "unknown")
+_COMPLEXITIES = ("T", "E", "M", "H", "N", "unknown")
+
+
+def _graph_rules() -> str:
+    """B2: the page's stylesheet drives the graph through the SVG classes (B1) and the
+    tokens (B0). Graphviz's own attributes stay as the fallback for the standalone SVG and
+    the PDF. Placed before the hover and focus rules, which win at equal specificity."""
+    rules = (
+        # Only the filled shape: stacked outlines (amount, D-16) are fill="none" and stay hollow.
+        [f'#viewport g.node.status-{s} :is(polygon, path):not([fill="none"]) '
+         f"{{ fill: var(--wv-status-{s}); }}" for s in STATUSES]
+        + [f"#viewport g.node.complexity-{c} :is(polygon, path) "
+           f"{{ stroke: var(--wv-complexity-{c}); }}" for c in _COMPLEXITIES]
+        + [f"#viewport g.node.scope-{c} text {{ fill: var(--wv-scope-text-{c}); }}" for c in _SCOPES]
+        # After the scope rules: same specificity, so the release's purple wins (D-15).
+        + ["#viewport g.node.kind-release text { fill: var(--wv-release); font-weight: bold; }",
+           "#viewport g.cluster.lane > :is(polygon, path) { stroke: var(--wv-lane); }",
+           "#viewport g.cluster.lane > text { fill: var(--wv-lane-text); }"])
+    return "\n".join(rules) + "\n"
+
+
+_STYLE = css_variables() + _graph_rules() + """
 :root { color-scheme: light dark; --wv-backdrop: rgb(15 23 42 / .45); }
 @media (prefers-color-scheme: dark) {
   :root { --wv-backdrop: rgb(0 0 0 / .6); }
@@ -78,9 +100,9 @@ dialog ul { margin: 0; padding-left: 1.1rem; }
     # sheet by hash, so the colours live here as classes, never as style="" attributes.
     [f".stat.status-{s} {{ background: var(--wv-status-{s}); }}\n" for s in STATUSES]
     + [f".stat.scope-{c} {{ border-left: 4px solid var(--wv-scope-{c}); }}\n"
-       for c in ("I", "L", "P", "U", "G", "unknown")]
+       for c in _SCOPES]
     + [f".stat.complexity-{c} {{ border-left: 4px solid var(--wv-complexity-{c}); }}\n"
-       for c in ("T", "E", "M", "H", "N", "unknown")])
+       for c in _COMPLEXITIES])
 
 # The Task Dimension glyphs, one per value. Emoji, so the HTML view only: WeasyPrint
 # drops them, which is why the node, Markdown and PDF use the markers and codes instead.

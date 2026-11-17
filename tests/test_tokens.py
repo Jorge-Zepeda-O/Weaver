@@ -88,6 +88,35 @@ class TestTokens(unittest.TestCase):
                 text = luminance(LIGHT[f"scope-text-{code}"])
                 self.assertGreaterEqual((canvas + 0.05) / (text + 0.05), 4.5)
 
+    def test_stylesheet_drives_the_graph_through_classes(self):
+        """B2: every encoded value has a rule reading its token; Graphviz's attributes
+        only remain as the fallback for the standalone SVG and the PDF."""
+        from weaver.html import _STYLE
+        expected = (
+            [f"#viewport g.node.status-{s} :is(polygon, path):not([fill=\"none\"]) "
+             f"{{ fill: var(--wv-status-{s}); }}" for s in ("todo", "doing", "done", "blocked")]
+            + [f"#viewport g.node.complexity-{c} :is(polygon, path) "
+               f"{{ stroke: var(--wv-complexity-{c}); }}" for c in ("T", "E", "M", "H", "N", "unknown")]
+            + [f"#viewport g.node.scope-{c} text {{ fill: var(--wv-scope-text-{c}); }}"
+               for c in ("I", "L", "P", "U", "G", "unknown")]
+            + ["#viewport g.node.kind-release text { fill: var(--wv-release); font-weight: bold; }",
+               "#viewport g.cluster.lane > :is(polygon, path) { stroke: var(--wv-lane); }",
+               "#viewport g.cluster.lane > text { fill: var(--wv-lane-text); }"])
+        for rule in expected:
+            with self.subTest(rule):
+                self.assertIn(rule, _STYLE)
+
+    def test_release_text_rule_follows_the_scope_rules(self):
+        """Same specificity, so order decides: a release's purple must win over scope's colour."""
+        from weaver.html import _STYLE
+        self.assertGreater(_STYLE.index("g.node.kind-release text"), _STYLE.index("g.node.scope-G text"))
+
+    def test_hover_and_focus_come_after_the_graph_rules(self):
+        from weaver.html import _STYLE
+        last_graph_rule = _STYLE.rindex("#viewport g.cluster.lane")
+        self.assertGreater(_STYLE.index("g.node:hover"), last_graph_rule)
+        self.assertGreater(_STYLE.index("g.node:focus-visible"), last_graph_rule)
+
     def test_page_and_pdf_carry_the_variables(self):
         from weaver import parse_plan
         from weaver.html import build_html
