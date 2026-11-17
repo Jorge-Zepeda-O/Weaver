@@ -14,7 +14,7 @@ BREAKOUT = "</script><b>x</b>"
 
 
 def _plan(*nodes: dict, **header: str):
-    return parse_plan({"plan": {"title": "T", **header}, "node": list(nodes)})
+    return parse_plan({"plan": {"schema": 1, "title": "T", **header}, "node": list(nodes)})
 
 
 def _data(page: str) -> dict:
@@ -41,8 +41,11 @@ class TestExamplePage(unittest.TestCase):
         a5 = _data(self.page)["nodes"]["A5"]
         node = self.plan.node("A5")
         self.assertEqual(
-            (a5["id"], a5["title"], a5["kind"], a5["status"], a5["owner"], a5["notes"], a5["deps"]),
-            (node.id, node.title, node.kind, node.status, node.owner, node.notes,
+            (a5["id"], a5["title"], a5["kind"], a5["status"], a5["group"], a5["notes"],
+             a5["scope"], a5["amount"], a5["complexity"], a5["verify"], a5["decisions"],
+             a5["unguarded"], a5["deps"]),
+            (node.id, node.title, node.kind, node.status, node.group, node.notes,
+             node.scope, node.amount, node.complexity, node.verify, list(node.decisions), False,
              [{"id": "A0", "seam": "build"}, {"id": "A2", "seam": "runtime"}]))
 
     def test_dependents_are_computed_from_edges_with_their_seam(self):
@@ -57,7 +60,7 @@ class TestExamplePage(unittest.TestCase):
                 self.assertEqual(nodes[node_id]["dependents"], expected)
 
     def test_title_and_caption_are_shown(self):
-        self.assertIn("<h1>weaver — practice run</h1>", self.page)
+        self.assertIn("<h1>weaver — the plan that built it</h1>", self.page)
         self.assertIn('<p class="caption">One plan file, three views.', self.page)
 
     def test_no_external_resources(self):
@@ -95,6 +98,42 @@ class TestExamplePage(unittest.TestCase):
                 self.assertIn(needle, self.page)
 
 
+class TestSchemaV1Page(unittest.TestCase):
+    def test_goal_is_shown_and_escaped(self):
+        page = build_html(_plan({"id": "a", "title": "x"}, goal="a < b"), "<svg></svg>")
+        self.assertIn('<p class="goal"><strong>Goal:</strong> a &lt; b</p>', page)
+
+    def test_no_goal_means_no_goal_paragraph(self):
+        self.assertNotIn('class="goal"', build_html(_plan({"id": "a", "title": "x"}), "<svg></svg>"))
+
+    def test_modal_has_a_slot_for_every_v1_field(self):
+        page = build_html(_plan({"id": "a", "title": "x"}), "<svg></svg>")
+        for name in ["group", "scope", "amount", "complexity", "verify", "decisions"]:
+            with self.subTest(name):
+                self.assertIn(f'data-field="{name}"', page)
+
+    def test_payload_carries_the_term_names(self):
+        terms = _data(build_html(_plan({"id": "a", "title": "x"}), "<svg></svg>"))["terms"]
+        self.assertEqual(terms["scope"]["L"], "local")
+        self.assertEqual(terms["amount"]["S"], "stream")
+        self.assertEqual(terms["complexity"]["N"], "novel")
+        self.assertEqual({k: set(v) for k, v in terms.items()},
+                         {"scope": set("ILPUG?"), "amount": set("1FNBS?"), "complexity": set("TEMHN?")})
+
+    def test_legend_names_every_code(self):
+        page = build_html(_plan({"id": "a", "title": "x"}), "<svg></svg>")
+        legend = re.search(r'<details id="legend">(.*?)</details>', page, re.S).group(1)
+        for code in ["I independent", "G global", "? unknowable", "T trivial", "N novel",
+                     "1 one", "S stream", "unguarded merge", "runtime seam"]:
+            with self.subTest(code):
+                self.assertIn(code, re.sub(r"<[^>]+>", " ", legend).replace("  ", " "))
+
+    def test_no_inline_style_attributes(self):
+        # The CSP admits the one <style> block by hash; a style="" attribute would be refused.
+        page = build_html(_plan({"id": "a", "title": "x", "scope": "G"}), "<svg></svg>")
+        self.assertNotRegex(page, r"\sstyle=")
+
+
 class TestEscaping(unittest.TestCase):
     def test_notes_cannot_break_out_of_the_data_block(self):
         page = build_html(_plan({"id": "a", "title": "x", "notes": BREAKOUT}), "<svg></svg>")
@@ -102,7 +141,7 @@ class TestEscaping(unittest.TestCase):
         self.assertEqual(_data(page)["nodes"]["a"]["notes"], BREAKOUT)
 
     def test_data_block_has_no_raw_less_than(self):
-        page = build_html(_plan({"id": "a", "title": "<x>", "owner": "<!--", "notes": "<"}), "<svg></svg>")
+        page = build_html(_plan({"id": "a", "title": "<x>", "group": "<!--", "notes": "<"}), "<svg></svg>")
         match = re.search(r'id="plan-data">(.*?)</script>', page, re.S)
         self.assertNotIn("<", match.group(1))
 

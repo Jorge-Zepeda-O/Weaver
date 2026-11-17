@@ -20,9 +20,33 @@ KINDS: tuple[Kind, ...] = ("atom", "merge")
 STATUSES: tuple[Status, ...] = ("todo", "doing", "done", "blocked")
 SEAMS: tuple[Seam, ...] = ("build", "runtime")
 
+SCHEMA_VERSION = 1
+
 # Node ids end up in Graphviz source, SVG element ids and HTML, so they are
 # restricted to characters that are safe verbatim in all three.
 NODE_ID_PATTERN = r"[A-Za-z0-9_.-]+"
+# "D-3" is a decision of the plan's own project, "other:D-22" one of another.
+DECISION_PATTERN = r"(?:[A-Za-z0-9_.-]+:)?D-[0-9]+"
+
+# Task Dimensions: three ordinal scales, low to high, each code with its name.
+# "?" means assessed but unknowable and ranks as the worst value; an absent
+# value ("") means unassessed. Ordinal: never summed or multiplied.
+DIMENSIONS: dict[str, dict[str, str]] = {
+    "scope": {"I": "independent", "L": "local", "P": "project", "U": "umbrella",
+              "G": "global", "?": "unknowable"},
+    "amount": {"1": "one", "F": "few", "N": "numerous", "B": "bulk", "S": "stream",
+               "?": "unknowable"},
+    "complexity": {"T": "trivial", "E": "easy", "M": "moderate", "H": "hard", "N": "novel",
+                   "?": "unknowable"},
+}
+UNASSESSED = "-"
+
+
+def dimension_key() -> tuple[str, ...]:
+    """The printed key to ``Node.dimension_label``, one line per dimension."""
+    return (*(f"{name[0].upper()} = {name}: " + ", ".join(f"{c} {n}" for c, n in codes.items())
+              for name, codes in DIMENSIONS.items()),
+            f"{UNASSESSED} unassessed; ? assessed but unknowable, ranks worst")
 
 
 @dataclass(frozen=True)
@@ -37,9 +61,27 @@ class Node:
     title: str
     kind: Kind = "atom"
     status: Status = "todo"
-    owner: str = ""
+    group: str = ""
     notes: str = ""
     deps: tuple[Dep, ...] = ()
+    scope: str = ""
+    amount: str = ""
+    complexity: str = ""
+    verify: str = ""
+    decisions: tuple[str, ...] = ()
+
+    @property
+    def unguarded(self) -> bool:
+        """A merge with nothing named to prove it done."""
+        return self.kind == "merge" and not self.verify
+
+    def dimension_label(self) -> str:
+        """``S:L A:- C:M``, or ``""`` when no dimension is assessed."""
+        codes = (self.scope, self.amount, self.complexity)
+        if not any(codes):
+            return ""
+        return " ".join(f"{name[0].upper()}:{code or UNASSESSED}"
+                        for name, code in zip(DIMENSIONS, codes))
 
 
 @dataclass(frozen=True)
@@ -54,6 +96,12 @@ class Plan:
     title: str
     nodes: tuple[Node, ...]
     caption: str = ""
+    goal: str = ""
+    schema: int = SCHEMA_VERSION
+
+    def groups(self) -> tuple[str, ...]:
+        """Named groups in order of first appearance; ungrouped nodes belong to none."""
+        return tuple(dict.fromkeys(n.group for n in self.nodes if n.group))
 
     def node(self, node_id: str) -> Node:
         for node in self.nodes:

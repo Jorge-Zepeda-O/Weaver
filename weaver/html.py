@@ -14,7 +14,8 @@ import re
 from html import escape
 from typing import Any
 
-from .model import Plan
+from .dot import _FILL, COMPLEXITY_WIDTH, SCOPE_COLOUR
+from .model import DIMENSIONS, Plan
 
 _SVG_XMLNS = re.compile(r'\s+xmlns(?::\w+)?="[^"]*"')
 
@@ -54,6 +55,13 @@ dialog dt { color: var(--muted); }
 dialog dd { margin: 0; }
 dialog ul { margin: 0; padding-left: 1.1rem; }
 .seam { color: var(--muted); font-size: .85rem; }
+.goal { margin: 0 0 .5rem; max-width: 70ch; }
+#legend { margin-top: .75rem; color: var(--muted); font-size: .85rem; }
+#legend summary { cursor: pointer; color: var(--fg); }
+#legend dl { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1rem; margin: .5rem 0 0; }
+#legend dt { color: var(--fg); }
+#legend dd { margin: 0; display: flex; flex-wrap: wrap; gap: .25rem .9rem; }
+#legend svg { vertical-align: middle; margin-right: .25rem; }
 .notes { white-space: pre-wrap; margin: 0; padding: .75rem; border-radius: 6px;
   background: var(--bg); border: 1px solid var(--border); }
 """
@@ -200,7 +208,13 @@ _SCRIPT = _GESTURES + """
     field("title").textContent = node.title;
     field("kind").textContent = node.kind;
     field("status").textContent = node.status;
-    field("owner").textContent = node.owner || "—";
+    field("group").textContent = node.group || "—";
+    for (const name of ["scope", "amount", "complexity"]) {
+      const code = node[name];
+      field(name).textContent = code ? code + " — " + plan.terms[name][code] : "— (unassessed)";
+    }
+    field("verify").textContent = node.verify || (node.unguarded ? "none — unguarded merge" : "—");
+    field("decisions").textContent = node.decisions.length ? node.decisions.join(", ") : "—";
     field("notes").textContent = node.notes || "—";
     fillList("deps", node.deps);
     fillList("dependents", node.dependents);
@@ -240,7 +254,12 @@ _DIALOG = """<dialog id="node-dialog" aria-labelledby="dialog-title">
   <dl>
     <dt>Kind</dt><dd data-field="kind"></dd>
     <dt>Status</dt><dd data-field="status"></dd>
-    <dt>Owner</dt><dd data-field="owner"></dd>
+    <dt>Group</dt><dd data-field="group"></dd>
+    <dt>Scope</dt><dd data-field="scope"></dd>
+    <dt>Amount</dt><dd data-field="amount"></dd>
+    <dt>Complexity</dt><dd data-field="complexity"></dd>
+    <dt>Verified by</dt><dd data-field="verify"></dd>
+    <dt>Decisions</dt><dd data-field="decisions"></dd>
     <dt>Depends on</dt><dd><ul data-field="deps"></ul></dd>
     <dt>Dependents</dt><dd><ul data-field="dependents"></ul></dd>
   </dl>
@@ -253,17 +272,55 @@ def _sha256(text: str) -> str:
 
 
 def plan_data(plan: Plan) -> dict[str, Any]:
-    """The JSON payload: every node with its deps and its dependents, keyed by id."""
+    """The JSON payload: every node with its deps and its dependents, keyed by id,
+    plus the names of the dimension codes."""
     dependents: dict[str, list[dict[str, str]]] = {n.id: [] for n in plan.nodes}
     for edge in plan.edges():
         dependents[edge.source].append({"id": edge.target, "seam": edge.seam})
-    return {"nodes": {
+    return {"terms": DIMENSIONS, "nodes": {
         n.id: {"id": n.id, "title": n.title, "kind": n.kind, "status": n.status,
-               "owner": n.owner, "notes": n.notes,
+               "group": n.group, "notes": n.notes, "scope": n.scope, "amount": n.amount,
+               "complexity": n.complexity, "verify": n.verify, "decisions": list(n.decisions),
+               "unguarded": n.unguarded,
                "deps": [{"id": d.id, "seam": d.seam} for d in n.deps],
                "dependents": dependents[n.id]}
         for n in plan.nodes
     }}
+
+
+def _swatch(shape: str = "box", fill: str = "#ffffff", stroke: str = "#334155",
+            width: str = "1", dashed: bool = False) -> str:
+    """A small inline SVG key. Presentation attributes only: the CSP refuses style=""."""
+    dash = ' stroke-dasharray="3 2"' if dashed else ""
+    paint = f'fill="{fill}" stroke="{stroke}" stroke-width="{width}"{dash}'
+    body = {
+        "box": f'<rect x="2" y="2" width="18" height="12" rx="3" {paint}/>',
+        "hexagon": f'<polygon points="2,8 6,2 16,2 20,8 16,14 6,14" {paint}/>',
+        "line": f'<line x1="1" y1="8" x2="21" y2="8" stroke="{stroke}" stroke-width="1.5"{dash}/>',
+    }[shape]
+    return f'<svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true">{body}</svg>'
+
+
+def _legend() -> str:
+    def items(entries: list[tuple[str, str]]) -> str:
+        return "".join(f"<span>{swatch}{escape(text)}</span>" for swatch, text in entries)
+
+    rows = [
+        ("Status (fill)", items([(_swatch(fill=c), s) for s, c in _FILL.items()])),
+        ("Kind (shape)", items([(_swatch(), "atom"), (_swatch("hexagon"), "merge"),
+                                (_swatch("hexagon", dashed=True), "unguarded merge (no verify)")])),
+        ("Seam (edge)", items([(_swatch("line"), "build seam"),
+                               (_swatch("line", dashed=True), "runtime seam")])),
+        ("Scope (border colour)", items([(_swatch(stroke=SCOPE_COLOUR[c], width="2.5"), f"{c} {n}")
+                                         for c, n in DIMENSIONS["scope"].items()])),
+        ("Complexity (border weight)", items([(_swatch(width=COMPLEXITY_WIDTH[c]), f"{c} {n}")
+                                              for c, n in DIMENSIONS["complexity"].items()])),
+        ("Amount (printed)", items([("", f"{c} {n}") for c, n in DIMENSIONS["amount"].items()])),
+        ("In each node", escape("S:scope A:amount C:complexity; - unassessed, "
+                                "? assessed but unknowable (ranks worst)")),
+    ]
+    body = "".join(f"<dt>{escape(term)}</dt><dd>{dd}</dd>" for term, dd in rows)
+    return f'<details id="legend"><summary>Legend</summary><dl>{body}</dl></details>'
 
 
 def build_html(plan: Plan, svg: str) -> str:
@@ -274,6 +331,7 @@ def build_html(plan: Plan, svg: str) -> str:
     csp = (f"default-src 'none'; script-src {_sha256(_SCRIPT)}; style-src {_sha256(_STYLE)}; "
            "base-uri 'none'; form-action 'none'")
     title = escape(plan.title)
+    goal = f'<p class="goal"><strong>Goal:</strong> {escape(plan.goal)}</p>\n' if plan.goal else ""
     caption = f'<p class="caption">{escape(plan.caption)}</p>\n' if plan.caption else ""
     return f"""<!doctype html>
 <html lang="en">
@@ -287,10 +345,11 @@ def build_html(plan: Plan, svg: str) -> str:
 </head>
 <body>
 <h1>{title}</h1>
-{caption}<div class="toolbar"><button type="button" id="reset-view">Reset view</button>
+{goal}{caption}<div class="toolbar"><button type="button" id="reset-view">Reset view</button>
 <span>Drag to pan, scroll or pinch to zoom, click a node for details.</span></div>
 <div id="viewport">
 {inline_svg}</div>
+{_legend()}
 {_DIALOG}
 <script type="application/json" id="plan-data">{data}</script>
 <script>{_SCRIPT}</script>

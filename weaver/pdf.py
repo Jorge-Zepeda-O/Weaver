@@ -10,7 +10,7 @@ import base64
 from html import escape
 from pathlib import Path
 
-from .model import Plan
+from .model import Plan, dimension_key
 
 _CSS = """
 @page { size: A4 landscape; margin: 14mm; }
@@ -18,7 +18,9 @@ body { font-family: sans-serif; font-size: 10pt; color: #111; }
 h1 { font-size: 16pt; margin: 0 0 4mm; }
 .graph { text-align: center; }
 .graph img { max-width: 100%; max-height: 140mm; }
+.goal { margin: 0 0 3mm; }
 .caption { font-style: italic; margin: 3mm 0 0; }
+.key { color: #555; font-size: 8.5pt; margin: 2mm 0 0; }
 .notes { page-break-before: always; }
 .note { margin: 0 0 5mm; page-break-inside: avoid; }
 .note h2 { font-size: 11pt; margin: 0 0 1mm; }
@@ -39,15 +41,20 @@ def _page(plan: Plan, svg: str) -> str:
         "<!doctype html><html><head><meta charset='utf-8'>",
         f"<title>{escape(plan.title)}</title><style>{_CSS}</style></head><body>",
         f"<h1>{escape(plan.title)}</h1>",
+        f"<p class='goal'>Goal: {escape(plan.goal)}</p>" if plan.goal else "",
         f"<div class='graph'><img alt='plan graph' src='data:image/svg+xml;base64,{image}'></div>",
     ]
     if plan.caption:
         parts.append(f"<p class='caption'>{escape(plan.caption)}</p>")
+    parts.append("<p class='key'>" + "<br>".join(escape(k) for k in dimension_key()) + "</p>")
 
     parts.append("<section class='notes'><h1>Field notes</h1>")
     for node in plan.nodes:
         deps = ", ".join(d.id if d.seam == "build" else f"{d.id} (runtime)" for d in node.deps)
-        meta = " · ".join(filter(None, [node.kind, node.status, node.owner,
+        verify = f"verify: {node.verify}" if node.verify else ("unguarded" if node.unguarded else "")
+        decisions = "decisions: " + ", ".join(node.decisions) if node.decisions else ""
+        meta = " · ".join(filter(None, [node.kind, node.status, node.group,
+                                        node.dimension_label(), verify, decisions,
                                         f"depends on {deps}" if deps else ""]))
         parts.append(
             f"<div class='note'><h2>{escape(node.id)}: {escape(node.title)}</h2>"

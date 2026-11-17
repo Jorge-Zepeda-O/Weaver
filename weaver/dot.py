@@ -3,6 +3,11 @@
 Every node statement carries ``id="node-<id>"``, so the SVG group for node X
 is ``<g id="node-X" class="node">``. That id is the contract with the HTML view
 (A3) and the PDF view (A5).
+
+Encoding: shape = kind, fill = status, edge style = seam, lane = group, border
+colour = scope, border weight = complexity, dashed border = unguarded merge.
+The dimension codes are printed in the label too, so colour never carries
+meaning alone.
 """
 from __future__ import annotations
 
@@ -14,7 +19,12 @@ from .model import Node, Plan
 DOT = "/usr/bin/dot"
 
 _FILL = {"todo": "#ffffff", "doing": "#dbeafe", "done": "#dcfce7", "blocked": "#fee2e2"}
-_SHAPE = {"atom": 'shape=box, style="rounded,filled"', "merge": "shape=hexagon, style=filled"}
+_SHAPE = {"atom": ("box", "rounded,filled"), "merge": ("hexagon", "filled")}
+# Heat scale, cool to hot; "?" ranks worst, so it sits past global.
+SCOPE_COLOUR = {"I": "#2563eb", "L": "#0891b2", "P": "#ca8a04", "U": "#ea580c",
+                "G": "#dc2626", "?": "#7f1d1d"}
+COMPLEXITY_WIDTH = {"T": "1", "E": "1.5", "M": "2.5", "H": "3.5", "N": "5", "?": "5"}
+LANE_COLOUR = "#94a3b8"
 _PROLOG = re.compile(r"<\?xml[^>]*\?>|<!DOCTYPE[^>]*>")
 # Graphviz 2.43 writes '-' in attribute values as '&#45;'; ids are restored to
 # their literal form so the contract holds for text matching as well as for parsers.
@@ -27,20 +37,36 @@ def _quote(text: str) -> str:
     return '"' + escaped.replace("\r\n", "\n").replace("\n", "\\n") + '"'
 
 
-def _node_statement(node: Node) -> str:
-    label = _quote(node.id + "\n" + node.title)
-    return (f'  "{node.id}" [id="node-{node.id}", label={label}, '
-            f'{_SHAPE[node.kind]}, fillcolor="{_FILL[node.status]}"];')
+def _node_statement(node: Node, indent: str = "  ") -> str:
+    label = _quote("\n".join(filter(None, [node.id, node.title, node.dimension_label()])))
+    shape, style = _SHAPE[node.kind]
+    if node.unguarded:
+        style += ",dashed"
+    style_attr = f'"{style}"' if "," in style else style
+    attrs = [f'id="node-{node.id}"', f"label={label}", f"shape={shape}", f"style={style_attr}",
+             f'fillcolor="{_FILL[node.status]}"']
+    if node.scope:
+        attrs.append(f'color="{SCOPE_COLOUR[node.scope]}"')
+    if node.complexity:
+        attrs.append(f"penwidth={COMPLEXITY_WIDTH[node.complexity]}")
+    return f'{indent}"{node.id}" [{", ".join(attrs)}];'
 
 
 def to_dot(plan: Plan) -> str:
     lines = [
         "digraph plan {",
         "  rankdir=LR;",
+        '  graph [fontname="Helvetica", fontsize=11];',
         '  node [fontname="Helvetica", fontsize=11];',
         '  edge [fontname="Helvetica"];',
     ]
-    lines += [_node_statement(node) for node in plan.nodes]
+    for index, group in enumerate(plan.groups()):
+        lines += [f'  subgraph "cluster_{index}" {{',
+                  f"    label={_quote(group)};",
+                  f'    style="rounded,dashed"; color="{LANE_COLOUR}"; fontcolor="#475569";']
+        lines += [_node_statement(n, "    ") for n in plan.nodes if n.group == group]
+        lines.append("  }")
+    lines += [_node_statement(n) for n in plan.nodes if not n.group]
     for edge in plan.edges():
         style = " [style=dashed]" if edge.seam == "runtime" else ""
         lines.append(f'  "{edge.source}" -> "{edge.target}"{style};')

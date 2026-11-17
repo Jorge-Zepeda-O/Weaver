@@ -10,11 +10,16 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from .model import KINDS, NODE_ID_PATTERN, SEAMS, STATUSES, Dep, Node, Plan
+from .model import (DECISION_PATTERN, DIMENSIONS, KINDS, NODE_ID_PATTERN, SCHEMA_VERSION,
+                    STATUSES, Dep, Node, Plan)
 
 _NODE_ID = re.compile(rf"^{NODE_ID_PATTERN}$")
-_PLAN_KEYS = {"title", "caption"}
-_NODE_KEYS = {"id", "title", "kind", "status", "owner", "notes", "deps", "runtime_deps"}
+_DECISION = re.compile(rf"^{DECISION_PATTERN}$")
+_PLAN_KEYS = {"schema", "title", "goal", "caption"}
+_NODE_KEYS = {"id", "title", "kind", "status", "group", "notes", "deps", "runtime_deps",
+              "verify", "decisions", *DIMENSIONS}
+# Keys an older plan may still carry, with what replaced them.
+_RENAMED = {"owner": "group"}
 _DEP_KEYS: dict[str, str] = {"deps": "build", "runtime_deps": "runtime"}
 
 
@@ -37,13 +42,14 @@ def parse_plan(data: dict[str, Any]) -> Plan:
     header = data.get("plan")
     raw_nodes = data.get("node")
 
-    title = ""
-    caption = ""
+    title = goal = caption = ""
     if not isinstance(header, dict):
         errors.append("missing [plan] table")
     else:
+        _check_schema(header, errors)
         errors += [f"[plan]: unknown key '{k}'" for k in sorted(set(header) - _PLAN_KEYS)]
         title = _string(header, "title", "[plan]", errors, required=True)
+        goal = _string(header, "goal", "[plan]", errors)
         caption = _string(header, "caption", "[plan]", errors)
     errors += [f"unknown top-level key '{k}'" for k in sorted(set(data) - {"plan", "node"})]
 
@@ -58,7 +64,7 @@ def parse_plan(data: dict[str, Any]) -> Plan:
 
     if errors:
         raise PlanError(errors)
-    return Plan(title=title, caption=caption, nodes=tuple(nodes))
+    return Plan(title=title, goal=goal, caption=caption, nodes=tuple(nodes))
 
 
 def _parse_node(index: int, raw: Any, errors: list[str]) -> Node | None:
@@ -71,14 +77,20 @@ def _parse_node(index: int, raw: Any, errors: list[str]) -> Node | None:
         where = f"node '{node_id}'"
     errors_before = len(errors)
 
-    errors += [f"{where}: unknown key '{k}'" for k in sorted(set(raw) - _NODE_KEYS)]
+    errors += [f"{where}: unknown key '{k}'" + (f" (renamed to '{_RENAMED[k]}' in schema 1)"
+                                                if k in _RENAMED else "")
+               for k in sorted(set(raw) - _NODE_KEYS)]
     if not isinstance(node_id, str) or not _NODE_ID.match(node_id):
         errors.append(f"{where}: 'id' must match {NODE_ID_PATTERN}")
     title = _string(raw, "title", where, errors, required=True)
     kind = _choice(raw, "kind", KINDS, where, errors)
     status = _choice(raw, "status", STATUSES, where, errors)
-    owner = _string(raw, "owner", where, errors)
+    group = _string(raw, "group", where, errors)
     notes = _string(raw, "notes", where, errors)
+    verify = _string(raw, "verify", where, errors)
+    dimensions = {name: _code(raw, name, tuple(codes), where, errors)
+                  for name, codes in DIMENSIONS.items()}
+    decisions = _decisions(raw, where, errors)
 
     deps: list[Dep] = []
     for key, seam in _DEP_KEYS.items():
@@ -91,7 +103,8 @@ def _parse_node(index: int, raw: Any, errors: list[str]) -> Node | None:
     if len(errors) > errors_before:
         return None
     return Node(id=node_id, title=title, kind=kind, status=status,  # type: ignore[arg-type]
-                owner=owner, notes=notes, deps=tuple(deps))
+                group=group, notes=notes, deps=tuple(deps), verify=verify,
+                decisions=decisions, **dimensions)
 
 
 def _string(table: dict[str, Any], key: str, where: str, errors: list[str],
@@ -115,6 +128,41 @@ def _choice(table: dict[str, Any], key: str, allowed: tuple[str, ...], where: st
         errors.append(f"{where}: '{key}' must be one of {', '.join(allowed)} (got {value!r})")
         return allowed[0]
     return value
+
+
+def _check_schema(header: dict[str, Any], errors: list[str]) -> None:
+    """Refuse a plan whose format version is missing or unknown, never guess at it."""
+    version = header.get("schema")
+    if version is None:
+        errors.append(f"[plan]: missing 'schema' (this version of weaver reads "
+                      f"schema = {SCHEMA_VERSION})")
+    elif not isinstance(version, int) or isinstance(version, bool):
+        errors.append("[plan]: 'schema' must be an integer")
+    elif version != SCHEMA_VERSION:
+        errors.append(f"[plan]: unsupported schema {version} "
+                      f"(this version of weaver reads schema = {SCHEMA_VERSION})")
+
+
+def _code(table: dict[str, Any], key: str, allowed: tuple[str, ...], where: str,
+          errors: list[str]) -> str:
+    """An optional controlled-vocabulary code; absent means unassessed (``""``)."""
+    value = table.get(key)
+    if value is None:
+        return ""
+    if value not in allowed:
+        errors.append(f"{where}: '{key}' must be one of {', '.join(allowed)} (got {value!r})")
+        return ""
+    return value
+
+
+def _decisions(raw: dict[str, Any], where: str, errors: list[str]) -> tuple[str, ...]:
+    value = raw.get("decisions", [])
+    if not isinstance(value, list) or not all(isinstance(d, str) for d in value):
+        errors.append(f"{where}: 'decisions' must be a list of decision handles")
+        return ()
+    bad = [d for d in value if not _DECISION.match(d)]
+    errors += [f"{where}: '{d}' is not a decision handle (D-3, or project:D-3)" for d in bad]
+    return () if bad else tuple(value)
 
 
 def _check_ids_and_refs(nodes: list[Node], errors: list[str]) -> None:

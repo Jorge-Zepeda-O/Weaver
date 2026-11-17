@@ -58,7 +58,7 @@ class TestFailures(unittest.TestCase):
     def test_invalid_plan_exits_1_and_names_the_defect(self):
         with tempfile.TemporaryDirectory() as tmp:
             bad = Path(tmp) / "bad.toml"
-            bad.write_text('[plan]\ntitle = "x"\n[[node]]\nid = "a"\ntitle = "y"\ndeps = ["zz"]\n',
+            bad.write_text('[plan]\nschema = 1\ntitle = "x"\n[[node]]\nid = "a"\ntitle = "y"\ndeps = ["zz"]\n',
                            encoding="utf-8")
             result = _run("build", str(bad), "-o", str(Path(tmp) / "out"))
         self.assertEqual(result.returncode, 1)

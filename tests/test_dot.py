@@ -13,7 +13,7 @@ SVG_NS = "{http://www.w3.org/2000/svg}"
 
 
 def _plan(*nodes: dict):
-    return parse_plan({"plan": {"title": "T"}, "node": list(nodes)})
+    return parse_plan({"plan": {"schema": 1, "title": "T"}, "node": list(nodes)})
 
 
 def _statement(dot: str, node_id: str) -> str:
@@ -33,7 +33,8 @@ class TestToDot(unittest.TestCase):
                 self.assertIn(f'id="node-{node.id}"', _statement(dot, node.id))
 
     def test_shape_follows_kind(self):
-        dot = to_dot(_plan({"id": "a", "title": "x"}, {"id": "m", "title": "y", "kind": "merge"}))
+        dot = to_dot(_plan({"id": "a", "title": "x"}, {"id": "m", "title": "y", "kind": "merge",
+                                                         "verify": "tests/test_m.py"}))
         cases = [("a", 'shape=box, style="rounded,filled"'), ("m", "shape=hexagon, style=filled")]
         for node_id, expected in cases:
             with self.subTest(node_id):
@@ -60,6 +61,63 @@ class TestToDot(unittest.TestCase):
     def test_label_escapes_backslash_and_quote(self):
         dot = to_dot(_plan({"id": "a", "title": 'say "hi" \\N'}))
         self.assertIn('label="a\\nsay \\"hi\\" \\\\N"', _statement(dot, "a"))
+
+
+def _cluster_bodies(dot: str) -> dict[str, list[str]]:
+    """Cluster label -> the node ids declared inside that cluster."""
+    clusters, current = {}, None
+    for line in (ln.strip() for ln in dot.splitlines()):
+        if line.startswith("subgraph "):
+            current = []
+        elif current is not None and line.startswith("label="):
+            clusters[line.removeprefix("label=").rstrip(";")] = current
+        elif current is not None and line == "}":
+            current = None
+        elif current is not None and line.startswith('"'):
+            current.append(line.split('"')[1])
+    return clusters
+
+
+class TestSchemaV1Dot(unittest.TestCase):
+    def test_unguarded_merge_has_a_dashed_border(self):
+        dot = to_dot(_plan({"id": "m", "title": "y", "kind": "merge"}))
+        self.assertIn('shape=hexagon, style="filled,dashed"', _statement(dot, "m"))
+
+    def test_scope_sets_the_border_colour(self):
+        cases = [("I", "#2563eb"), ("L", "#0891b2"), ("P", "#ca8a04"), ("U", "#ea580c"),
+                 ("G", "#dc2626"), ("?", "#7f1d1d")]
+        for code, colour in cases:
+            with self.subTest(code):
+                dot = to_dot(_plan({"id": "a", "title": "x", "scope": code}))
+                self.assertIn(f'color="{colour}"', _statement(dot, "a"))
+
+    def test_complexity_sets_the_border_weight(self):
+        cases = [("T", "1"), ("E", "1.5"), ("M", "2.5"), ("H", "3.5"), ("N", "5"), ("?", "5")]
+        for code, width in cases:
+            with self.subTest(code):
+                dot = to_dot(_plan({"id": "a", "title": "x", "complexity": code}))
+                self.assertIn(f"penwidth={width}", _statement(dot, "a"))
+
+    def test_unassessed_dimensions_leave_the_border_alone(self):
+        statement = _statement(to_dot(_plan({"id": "a", "title": "x"})), "a")
+        self.assertNotIn("color=", statement.replace("fillcolor=", ""))
+        self.assertNotIn("penwidth", statement)
+
+    def test_label_prints_the_codes_so_colour_is_never_alone(self):
+        dot = to_dot(_plan({"id": "a", "title": "x", "scope": "L", "complexity": "M"}))
+        self.assertIn('label="a\\nx\\nS:L A:- C:M"', _statement(dot, "a"))
+
+    def test_groups_become_lanes(self):
+        dot = to_dot(_plan({"id": "a", "title": "x", "group": "sub-1"},
+                           {"id": "b", "title": "y", "group": "main"},
+                           {"id": "c", "title": "z", "group": "sub-1"},
+                           {"id": "d", "title": "w"}))
+        self.assertEqual(_cluster_bodies(dot), {'"sub-1"': ["a", "c"], '"main"': ["b"]})
+        self.assertEqual(dot.count('"d" ['), 1, "an ungrouped node is still declared once")
+
+    def test_group_label_is_escaped(self):
+        dot = to_dot(_plan({"id": "a", "title": "x", "group": 'say "hi"'}))
+        self.assertIn('label="say \\"hi\\"";', dot)
 
 
 class TestRenderSvg(unittest.TestCase):
