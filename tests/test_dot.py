@@ -120,6 +120,29 @@ class TestSchemaV1Dot(unittest.TestCase):
         self.assertIn('label="say \\"hi\\"";', dot)
 
 
+class TestLayoutReadsLeftToRight(unittest.TestCase):
+    """Every edge points rightwards, even when a lane spans the whole history.
+
+    Graphviz ranks each cluster on its own unless told otherwise, so a lane that
+    holds both the first node and the last merge pulls them together.
+    """
+
+    @staticmethod
+    def _node_x(svg: str) -> dict[str, float]:
+        root = ET.fromstring(svg)
+        return {g.get("id").removeprefix("node-"): float(g.find(f"{SVG_NS}text").get("x"))
+                for g in root.iter(f"{SVG_NS}g") if g.get("class") == "node"}
+
+    def test_no_edge_points_backwards(self):
+        def node(i, group, deps=(), kind="atom"):
+            return {"id": i, "title": i, "group": group, "deps": list(deps), "kind": kind}
+        plan = _plan(node("a", "main"), node("b", "side", ["a"]), node("c", "side", ["b"]),
+                     node("d", "side", ["c"]), node("m", "main", ["d"], "merge"))
+        x = self._node_x(render_svg(plan))
+        backwards = [(e.source, e.target) for e in plan.edges() if x[e.target] <= x[e.source]]
+        self.assertEqual(backwards, [])
+
+
 class TestRenderSvg(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

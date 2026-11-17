@@ -56,6 +56,7 @@ def to_dot(plan: Plan) -> str:
     lines = [
         "digraph plan {",
         "  rankdir=LR;",
+        "  newrank=true;  // rank globally, so a lane spanning the history cannot pull its ends together",
         '  graph [fontname="Helvetica", fontsize=11];',
         '  node [fontname="Helvetica", fontsize=11];',
         '  edge [fontname="Helvetica"];',
