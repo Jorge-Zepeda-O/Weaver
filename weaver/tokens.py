@@ -14,6 +14,8 @@ LIGHT: dict[str, str] = {
     "canvas": "#ffffff", "ink": "#334155", "lane": "#94a3b8", "lane-text": "#475569",
     # The card's rules (A3-7): the line under the header and the divider before the codes.
     "rule": "#94a3b8",
+    # The overlap mark (A3-4) in one clear alert colour, whatever the node's scope.
+    "alert": "#d97706",
     # Status fills step in lightness as well as hue (todo > done > doing > blocked),
     # so they stay apart without full colour vision; the symbol carries status anyway (B3).
     "status-todo": "#ffffff", "status-done": "#d1fae5",

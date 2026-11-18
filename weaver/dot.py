@@ -29,6 +29,8 @@ _SHAPE = {"atom": ("box", "rounded,filled"), "merge": ("hexagon", "filled"),
 # A release's text is bold purple, a colour no scope uses (D-15); its scope stays in the code.
 RELEASE_COLOUR = LIGHT["release"]
 RULE_COLOUR = LIGHT["rule"]
+ALERT_COLOUR = LIGHT["alert"]
+ALERT_MARK = f'<FONT COLOR="{ALERT_COLOUR}">⚠</FONT>'
 
 
 def _token_map(prefix: str, codes: str) -> dict[str, str]:
@@ -88,7 +90,7 @@ def _card(node: Node, overlapping: bool = False) -> str:
         node.title, TITLE_WIDTH, break_long_words=False, break_on_hyphens=False))
     codes = node.dimension_codes()
     # A3-4: ⚠ when this node and one in another lane touch the same file, unordered.
-    header = f"<B>{_html(node.id)}</B> · {_html(node.status_label())}" + (" · ⚠" if overlapping else "")
+    header = f"<B>{_html(node.id)}</B> · {_html(node.status_label())}" + (f" · {ALERT_MARK}" if overlapping else "")
     table = f'<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" COLOR="{RULE_COLOUR}">'
     if not codes:
         return f"<{table}<TR><TD>{header}</TD></TR><HR/><TR><TD>{title}</TD></TR></TABLE>>"
@@ -252,5 +254,7 @@ def _centred_line(line: list[Run], centre: str) -> str:
     spans = []
     for attrs, content in line:
         own = " ".join(f'{k}="{v}"' for k, v in attrs.items() if k not in _POSITION and k not in common)
+        if content == "⚠":  # the overlap mark: classed, so the page's scope colour passes it by
+            own = ('class="alert" ' + own).strip()
         spans.append(f"<tspan {own}>{content}</tspan>" if own else f"<tspan>{content}</tspan>")
     return f"<text {outer}>{''.join(spans)}</text>\n"

@@ -41,6 +41,8 @@ def _graph_rules() -> str:
         + ["#viewport g.node.kind-release text { fill: var(--wv-release); font-weight: bold; }",
            # The card's rules (A3-7) stay one quiet colour, whatever the node's status or border.
            "#viewport g.node polygon.rule { fill: var(--wv-rule); stroke: var(--wv-rule); }",
+           # The overlap mark (A3-4) keeps its alert colour inside any scope's text.
+           "#viewport g.node text tspan.alert { fill: var(--wv-alert); }",
            "#viewport g.cluster.lane > :is(polygon, path) { stroke: var(--wv-lane); }",
            "#viewport g.cluster.lane > text { fill: var(--wv-lane-text); }"])
     return "\n".join(rules) + "\n"

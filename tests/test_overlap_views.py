@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 from weaver import parse_plan
 from weaver.dot import render_svg, to_dot
-from weaver.html import build_html, plan_data
+from weaver.html import _STYLE, build_html, plan_data
 from weaver.markdown import to_markdown
 from weaver.model import overlaps
 from weaver.pdf import _page
@@ -42,7 +42,7 @@ class TestCard(unittest.TestCase):
         for node_id, marked in [("a", True), ("b", True), ("c", True), ("q", False)]:
             with self.subTest(node_id):
                 header = re.search(r"<TD[^>]*>(<B>.*?)</TD>", _statement(node_id)).group(1)
-                self.assertEqual(header.endswith(" · ⚠"), marked, header)
+                self.assertEqual(header.endswith(' · <FONT COLOR="#d97706">⚠</FONT>'), marked, header)
                 self.assertEqual(" overlap" in re.search(r'class="([^"]*)"', _statement(node_id)).group(1),
                                  marked)
 
@@ -52,6 +52,15 @@ class TestCard(unittest.TestCase):
         header = "".join(next(group.iter(f"{SVG_NS}text")).itertext())
         self.assertEqual(header, "a · ○ todo · ⚠")
         self.assertIn("overlap", group.get("class").split())
+
+    def test_mark_is_amber_in_the_svg_and_on_the_page(self):
+        """The mark gets one clear alert colour; the scope colour of the
+        rest of the text must not repaint it (a tspan's own class beats the text's rule)."""
+        svg = ET.fromstring(render_svg(PLAN))
+        group = next(g for g in svg.iter(f"{SVG_NS}g") if g.get("id") == "node-a")
+        mark = next(t for t in group.iter(f"{SVG_NS}tspan") if t.text == "⚠")
+        self.assertEqual((mark.get("class"), mark.get("fill")), ("alert", "#d97706"))
+        self.assertIn("#viewport g.node text tspan.alert { fill: var(--wv-alert); }", _STYLE)
 
 
 class TestPanel(unittest.TestCase):
