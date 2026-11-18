@@ -2,7 +2,7 @@
 
 **Goal:** python -m weaver build turns this file into a clickable HTML graph, a Markdown table and a PDF, with every view tested.
 
-One plan file, three views. A0 is the shared contract and lands first; the A2→A3 strand runs in parallel with the main strand; M1 is the only merge, and the end-to-end test guards it.
+One plan file, three views. A0 is the shared contract and lands first; the A2→A3 strand runs in parallel with the main strand; M1 is the only merge, and the end-to-end test guards it. V1 is the release the merge became.
 
 | ID | Kind | Title | Group | Status | Dimensions | Verify | Depends on |
 |---|---|---|---|---|---|---|---|
@@ -13,6 +13,7 @@ One plan file, three views. A0 is the shared contract and lands first; the A2→
 | A4 | atom | Markdown table export | main | ✓ done | ↕I ↔1 ⤓E | tests/test_views_md_pdf.py | A1 |
 | A5 | atom | PDF view: graph + caption + field notes | main | ✓ done | ↕I ↔1 ⤓E | tests/test_views_md_pdf.py | A0, A2 (runtime) |
 | M1 | merge | CLI build + end-to-end test | main | ✓ done | ↕P ↔F ⤓E | tests/test_cli.py | A1, A3, A4, A5 |
+| V1 | release | v0.1.0: tagged and published | main | ✓ done | ↕P ↔1 ⤓E | the v0.1.0 tag and its release page | M1 |
 
 **Key:**
 
@@ -90,3 +91,13 @@ Runtime seam on A2 because it consumes the SVG A2 produces, not A2's code.
 
 python -m weaver build PLAN.toml -o out/ → PLAN.html, PLAN.md, PLAN.pdf, plan.svg.
 The end-to-end test is the oracle for the merge.
+
+### V1: v0.1.0: tagged and published
+
+- **Status**: ✓ done
+- **Group**: main
+- **Dimensions**: ↕P ↔1 ⤓E
+- **Verify**: the v0.1.0 tag and its release page
+
+A release is a merge that marks where a version was cut (schema 2), drawn as an octagon with bold purple text.
+Shortened for the example: a port into the repository and a schema pass sat between M1 and the tag.

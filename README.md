@@ -1,6 +1,6 @@
 # Weaver
 
-**Version 0.1 — a working prototype, under active development.**
+**Version 0.2 — under active development.**
 
 Weaver turns a plan, written as a small TOML file, into views you can read and share:
 
@@ -11,13 +11,15 @@ Weaver turns a plan, written as a small TOML file, into views you can read and s
 | `PLAN.pdf` | The graph, its caption, a key, and the field notes. |
 | `plan.svg` | The graph alone. |
 
-A plan is a dependency graph of work. Each node is either an **atom** (a unit of work) or a **merge** (where parallel strands come together). Each dependency is either a **build** seam (static: one node needs another's code) or a **runtime** seam (dynamic: one node needs another's output). Nodes run in **groups**, the parallel strands, and Weaver draws each group as a lane.
+A plan is a dependency graph of work. Each node is an **atom** (a unit of work), a **merge** (where parallel strands come together) or a **release** (a merge where a version was cut). Each dependency is either a **build** seam (static: one node needs another's code) or a **runtime** seam (dynamic: one node needs another's output). Nodes run in **groups**, the parallel strands, and Weaver draws each group as a lane.
 
 The plan format is the core of the project, and Weaver displays it. The example plan, [`examples/weaver_plan.toml`](examples/weaver_plan.toml), is the plan that built Weaver.
 
 ## What it looks like
 
-![The example plan rendered by Weaver: seven nodes in two lanes, converging on one merge](docs/example/plan.svg)
+![The example plan rendered by Weaver: seven nodes in two lanes converge on one merge, which leads to a release](docs/example/plan.svg)
+
+Each node is a card: its id and status (`✓ done`), its title, and its codes. The fill shows the status, the border's colour and weight show complexity, the number of outlines shows amount, and the colour of the `↕` code shows scope.
 
 The same plan as [Markdown](docs/example/PLAN.md) and as a [PDF](docs/example/PLAN.pdf). The interactive [`PLAN.html`](docs/example/PLAN.html) has to be downloaded and opened in a browser, because GitHub shows HTML files as source.
 
@@ -43,7 +45,7 @@ An excerpt showing every field (nodes `A0` and `A1` are defined elsewhere in the
 
 ```toml
 [plan]
-schema = 1
+schema = 2
 title = "Ship the importer"
 goal = "Customers can import a CSV and see their data."
 caption = "Two parallel strands meet at M1."
@@ -83,12 +85,12 @@ Unknown keys are errors, so a typo fails loudly instead of being ignored.
 |---|---|---|
 | `id` | required | Letters, digits, `_`, `.`, `-`. Unique within the plan. |
 | `title` | required | Non-empty. |
-| `kind` | `atom` | `atom`, `merge`, or `release` (schema 2): a merge that marks where a version was cut, drawn as an octagon with purple text. |
-| `status` | `todo` | `todo`, `doing`, `done` or `blocked`. Drawn as the fill colour. |
+| `kind` | `atom` | `atom`, `merge`, or `release` (schema 2): a merge that marks where a version was cut, drawn as an octagon with bold purple text. |
+| `status` | `todo` | `todo`, `doing`, `done` or `blocked`. Drawn as the fill colour, and printed as a symbol and the word: `○ todo`, `◐ doing`, `✓ done`, `✕ blocked`. |
 | `group` | optional | The parallel strand the node runs in. Drawn as a lane. |
 | `deps` | optional | Build seams: ids of nodes this one statically depends on. |
 | `runtime_deps` | optional | Runtime seams: ids of nodes whose output this one consumes. Drawn dashed. A dependency belongs in exactly one of the two lists, and the graph must be acyclic (a cycle is reported with its path). |
-| `scope` | optional | Reach: `I` independent · `L` local · `P` project · `U` umbrella · `G` global. Drawn as the text colour, cool to hot. |
+| `scope` | optional | Reach: `I` independent · `L` local · `P` project · `U` umbrella · `G` global. Drawn as the colour of the node's `↕` code, cool to hot. |
 | `amount` | optional | Breadth: `1` one · `F` few · `N` numerous · `B` bulk · `S` stream. Drawn as the number of outlines, one to five. |
 | `complexity` | optional | Depth: `T` trivial · `E` easy · `M` moderate · `H` hard · `N` novel. Drawn as the border's colour and weight, calm grey to heavy red. |
 | `verify` | optional | The test or check that proves the node done. A merge or release without one is drawn with a dashed border and marked *unguarded*. |

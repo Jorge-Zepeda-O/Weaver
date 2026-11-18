@@ -53,7 +53,8 @@ class TestExamplePage(unittest.TestCase):
         cases = [
             ("A2", [{"id": "A3", "seam": "build"}, {"id": "A5", "seam": "runtime"}]),
             ("A0", [{"id": i, "seam": "build"} for i in ("A1", "A2", "A3", "A5")]),
-            ("M1", []),
+            ("M1", [{"id": "V1", "seam": "build"}]),
+            ("V1", []),
         ]
         for node_id, expected in cases:
             with self.subTest(node_id):

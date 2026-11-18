@@ -22,7 +22,7 @@ def _errors(data: dict) -> list[str]:
 class TestValidPlans(unittest.TestCase):
     def test_example_plan_loads(self):
         plan = load_plan(EXAMPLE)
-        self.assertEqual([n.id for n in plan.nodes], ["A0", "A1", "A2", "A3", "A4", "A5", "M1"])
+        self.assertEqual([n.id for n in plan.nodes], ["A0", "A1", "A2", "A3", "A4", "A5", "M1", "V1"])
 
     def test_defaults_apply(self):
         node = parse_plan(_plan({"id": "a", "title": "x"})).node("a")
@@ -182,9 +182,11 @@ class TestSchemaV1(unittest.TestCase):
                 node = parse_plan(_plan({**self.ok, **extra})).node("a")
                 self.assertEqual(node.dimension_label(), expected)
 
-    def test_example_plan_uses_schema_v1(self):
+    def test_example_plan_uses_schema_v2(self):
+        """R2: the example shows the release kind, so it declares schema 2."""
         plan = load_plan(EXAMPLE)
-        self.assertEqual(plan.schema, 1)
+        self.assertEqual(plan.schema, 2)
+        self.assertEqual([n.id for n in plan.nodes if n.kind == "release"], ["V1"])
         self.assertTrue(plan.goal)
         for node in plan.nodes:
             with self.subTest(node.id):

@@ -1,9 +1,9 @@
 # The plan that built weaver, and its first test input.
 #
-# Schema 1 (every field is described in the README)
-#   [plan]        schema = 1 (required), title (required), goal, caption
+# Schema 2 (every field is described in the README)
+#   [plan]        schema = 2 (required), title (required), goal, caption
 #   [[node]]      id (required, [A-Za-z0-9_.-]+), title (required)
-#                 kind = atom | merge                      (default atom)
+#                 kind = atom | merge | release            (default atom; release needs schema 2)
 #                 status = todo | doing | done | blocked   (default todo)
 #                 group                        the parallel strand the node runs in
 #                 deps = [...]                 build seams   (static dependency)
@@ -16,10 +16,10 @@
 #                 notes                        free text
 
 [plan]
-schema = 1
+schema = 2
 title = "weaver — the plan that built it"
 goal = "python -m weaver build turns this file into a clickable HTML graph, a Markdown table and a PDF, with every view tested."
-caption = "One plan file, three views. A0 is the shared contract and lands first; the A2→A3 strand runs in parallel with the main strand; M1 is the only merge, and the end-to-end test guards it."
+caption = "One plan file, three views. A0 is the shared contract and lands first; the A2→A3 strand runs in parallel with the main strand; M1 is the only merge, and the end-to-end test guards it. V1 is the release the merge became."
 
 [[node]]
 id = "A0"
@@ -121,4 +121,20 @@ verify = "tests/test_cli.py"
 notes = """
 python -m weaver build PLAN.toml -o out/ → PLAN.html, PLAN.md, PLAN.pdf, plan.svg.
 The end-to-end test is the oracle for the merge.
+"""
+
+[[node]]
+id = "V1"
+title = "v0.1.0: tagged and published"
+kind = "release"
+status = "done"
+group = "main"
+deps = ["M1"]
+scope = "P"
+amount = "1"
+complexity = "E"
+verify = "the v0.1.0 tag and its release page"
+notes = """
+A release is a merge that marks where a version was cut (schema 2), drawn as an octagon with bold purple text.
+Shortened for the example: a port into the repository and a schema pass sat between M1 and the tag.
 """
