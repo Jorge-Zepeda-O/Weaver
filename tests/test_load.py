@@ -329,3 +329,53 @@ class TestAcknowledgements(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestReworks(unittest.TestCase):
+    """A3-11: a later node names the done nodes it fixes. Nodes are only ever added, so a
+    fix is a new node with `reworks`, never an edit to the old one. New in schema 3."""
+    old = {"id": "old", "title": "x", "status": "done"}
+
+    def _reworks(self, reworks, schema=3):
+        node = {"id": "fix", "title": "y", "reworks": reworks}
+        return parse_plan(_plan(self.old, {"id": "o2", "title": "z"}, node, schema=schema)).node("fix").reworks
+
+    def test_parses_as_an_array(self):
+        self.assertEqual(self._reworks(["old", "o2"]), ("old", "o2"))
+
+    def test_absent_means_none(self):
+        self.assertEqual(parse_plan(_plan(self.old, schema=3)).node("old").reworks, ())
+
+    def test_any_status_may_be_reworked(self):
+        for status in ("todo", "doing", "done", "blocked"):
+            with self.subTest(status):
+                plan = _plan({**self.old, "status": status}, {"id": "fix", "title": "y", "reworks": ["old"]},
+                             schema=3)
+                self.assertEqual(parse_plan(plan).node("fix").reworks, ("old",))
+
+    def test_schema_3_only(self):
+        for schema in (1, 2):
+            with self.subTest(schema):
+                errors = _errors(_plan(self.old, {"id": "fix", "title": "y", "reworks": ["old"]}, schema=schema))
+                self.assertIn("node 'fix': field 'reworks' needs schema = 3", errors)
+
+    def test_invalid_references(self):
+        cases = [
+            (["nope"], "node 'fix': reworks unknown node 'nope'"),
+            (["fix"], "node 'fix': reworks itself"),
+            (["old", "old"], "node 'fix': reworks 'old' more than once"),
+            ("old", "node 'fix': 'reworks' must be a list of node ids"),
+            ([3], "node 'fix': 'reworks' must be a list of node ids"),
+        ]
+        for reworks, message in cases:
+            with self.subTest(reworks):
+                errors = _errors(_plan(self.old, {"id": "fix", "title": "y", "reworks": reworks}, schema=3))
+                self.assertIn(message, errors)
+
+    def test_a_rework_cannot_come_before_what_it_fixes(self):
+        """`old` depends (through `mid`) on `fix`, so `fix` would fix something not yet built."""
+        plan = _plan({"id": "fix", "title": "y", "reworks": ["old"]},
+                     {"id": "mid", "title": "m", "deps": ["fix"]},
+                     {**self.old, "deps": ["mid"]}, schema=3)
+        self.assertIn("node 'fix': reworks 'old', which depends on it (a rework comes after "
+                      "what it fixes)", _errors(plan))

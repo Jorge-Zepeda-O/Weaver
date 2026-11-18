@@ -18,7 +18,7 @@ _NODE_ID = re.compile(rf"^{NODE_ID_PATTERN}$")
 _DECISION = re.compile(rf"^{DECISION_PATTERN}$")
 _PLAN_KEYS = {"schema", "title", "goal", "caption"}
 _NODE_KEYS = {"id", "title", "kind", "status", "group", "notes", "deps", "runtime_deps",
-              "verify", "decisions", "files", *DIMENSIONS}
+              "verify", "decisions", "files", "reworks", *DIMENSIONS}
 # Keys an older plan may still carry, with what replaced them.
 _RENAMED = {"owner": "group"}
 _DEP_KEYS: dict[str, str] = {"deps": "build", "runtime_deps": "runtime"}
@@ -67,6 +67,8 @@ def parse_plan(data: dict[str, Any]) -> Plan:
     acknowledgements = _acknowledgements(data.get("overlap"), schema, nodes, errors)
     if not errors:
         _check_acyclic(nodes, errors)
+    if not errors:
+        _check_rework_order(nodes, errors)
 
     if errors:
         raise PlanError(errors)
@@ -103,6 +105,11 @@ def _parse_node(index: int, raw: Any, schema: int, errors: list[str]) -> Node | 
     if "files" in raw and FIELD_SINCE["files"] > schema:
         errors.append(f"{where}: field 'files' needs schema = {FIELD_SINCE['files']}")
     files = _files(raw, where, errors)
+    if "reworks" in raw and FIELD_SINCE["reworks"] > schema:
+        errors.append(f"{where}: field 'reworks' needs schema = {FIELD_SINCE['reworks']}")
+    reworks = raw.get("reworks", [])
+    if not isinstance(reworks, list) or not all(isinstance(r, str) for r in reworks):
+        errors.append(f"{where}: 'reworks' must be a list of node ids")
 
     deps: list[Dep] = []
     for key, seam in _DEP_KEYS.items():
@@ -116,7 +123,7 @@ def _parse_node(index: int, raw: Any, schema: int, errors: list[str]) -> Node | 
         return None
     return Node(id=node_id, title=title, kind=kind, status=status,  # type: ignore[arg-type]
                 group=group, notes=notes, deps=tuple(deps), verify=verify,
-                decisions=decisions, files=files, **dimensions)
+                decisions=decisions, files=files, reworks=tuple(reworks), **dimensions)
 
 
 def _string(table: dict[str, Any], key: str, where: str, errors: list[str],
@@ -258,6 +265,35 @@ def _check_ids_and_refs(nodes: list[Node], errors: list[str]) -> None:
         for dep_id in sorted({d for d in dep_ids if dep_ids.count(d) > 1}):
             errors.append(f"node '{node.id}': '{dep_id}' listed more than once "
                           "(a dependency has exactly one seam type)")
+        for target in node.reworks:
+            if target == node.id:
+                errors.append(f"node '{node.id}': reworks itself")
+            elif target not in seen:
+                errors.append(f"node '{node.id}': reworks unknown node '{target}'")
+        for target in sorted({t for t in node.reworks if node.reworks.count(t) > 1}):
+            errors.append(f"node '{node.id}': reworks '{target}' more than once")
+
+
+def _check_rework_order(nodes: list[Node], errors: list[str]) -> None:
+    """A3-11: a rework comes after what it fixes, so the fixed node must not depend on it."""
+    deps_of = {n.id: [d.id for d in n.deps] for n in nodes}
+
+    def depends_on(node_id: str, target: str) -> bool:
+        stack, seen = list(deps_of[node_id]), set()
+        while stack:
+            dep_id = stack.pop()
+            if dep_id == target:
+                return True
+            if dep_id not in seen:
+                seen.add(dep_id)
+                stack += deps_of[dep_id]
+        return False
+
+    for node in nodes:
+        for target in node.reworks:
+            if depends_on(target, node.id):
+                errors.append(f"node '{node.id}': reworks '{target}', which depends on it "
+                              "(a rework comes after what it fixes)")
 
 
 def _check_acyclic(nodes: list[Node], errors: list[str]) -> None:
