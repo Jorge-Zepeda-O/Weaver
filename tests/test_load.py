@@ -241,7 +241,8 @@ class TestFiles(unittest.TestCase):
     def test_bad_types_rejected(self):
         for name, value in [("string", "a.py"), ("number", 3), ("list of numbers", [1]),
                             ("empty string", [""]), ("blank string", ["  "]),
-                            ("mixed", ["a.py", 2])]:
+                            ("mixed", ["a.py", 2]), ("empty after normalising", ["./"]),
+                            ("root only", ["/"])]:
             with self.subTest(name):
                 errors = _errors(_plan({**self.base, "files": value}, schema=3))
                 self.assertIn("node 'a': 'files' must be a list of non-empty strings", errors)

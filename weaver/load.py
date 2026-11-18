@@ -182,10 +182,13 @@ def _decisions(raw: dict[str, Any], where: str, errors: list[str]) -> tuple[str,
 def _files(raw: dict[str, Any], where: str, errors: list[str]) -> tuple[str, ...]:
     """Paths a node touches, normalised (no leading ``./`` or trailing ``/``) and deduplicated."""
     value = raw.get("files", [])
-    if not isinstance(value, list) or not all(isinstance(f, str) and f.strip() for f in value):
+    paths = ([f.removeprefix("./").removesuffix("/") for f in value]
+             if isinstance(value, list) and all(isinstance(f, str) for f in value) else None)
+    # Checked after normalising, so "./" or "/" cannot slip through as an empty path.
+    if paths is None or not all(p.strip() for p in paths):
         errors.append(f"{where}: 'files' must be a list of non-empty strings")
         return ()
-    return tuple(dict.fromkeys(f.removeprefix("./").removesuffix("/") for f in value))
+    return tuple(dict.fromkeys(paths))
 
 
 def _check_ids_and_refs(nodes: list[Node], errors: list[str]) -> None:
