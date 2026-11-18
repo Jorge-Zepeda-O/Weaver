@@ -100,9 +100,9 @@ class TestSchemaV1(unittest.TestCase):
     def test_schema_version_is_required_and_must_be_known(self):
         cases = [
             ("missing", {"plan": {"title": "T"}, "node": [self.ok]},
-             "[plan]: missing 'schema' (this version of weaver reads schema = 1 or 2)"),
-            ("unknown version", _plan(self.ok, schema=3),
-             "[plan]: unsupported schema 3 (this version of weaver reads schema = 1 or 2)"),
+             "[plan]: missing 'schema' (this version of weaver reads schema = 1, 2 or 3)"),
+            ("unknown version", _plan(self.ok, schema=4),
+             "[plan]: unsupported schema 4 (this version of weaver reads schema = 1, 2 or 3)"),
             ("zero", _plan(self.ok, schema=0), "[plan]: unsupported schema 0"),
             ("string", _plan(self.ok, schema="1"), "[plan]: 'schema' must be an integer"),
             ("bool", _plan(self.ok, schema=True), "[plan]: 'schema' must be an integer"),
@@ -213,6 +213,44 @@ class TestSchemaV2(unittest.TestCase):
     def test_unknown_kind_lists_all_three(self):
         errors = _errors(_plan({"id": "a", "title": "x", "kind": "merger"}, schema=2))
         self.assertTrue(any("'kind' must be one of atom, merge, release" in e for e in errors), errors)
+
+
+class TestFiles(unittest.TestCase):
+    """A3-1: `files` per node is new in schema 3."""
+    base = {"id": "a", "title": "x"}
+
+    def _files(self, files, schema=3):
+        return parse_plan(_plan({**self.base, "files": files}, schema=schema)).node("a").files
+
+    def test_parses(self):
+        self.assertEqual(self._files(["weaver/html.py", "tests/test_html.py"]),
+                         ("weaver/html.py", "tests/test_html.py"))
+
+    def test_defaults_to_empty(self):
+        for schema in (1, 2, 3):
+            with self.subTest(schema=schema):
+                self.assertEqual(parse_plan(_plan(self.base, schema=schema)).node("a").files, ())
+
+    def test_schema_gate(self):
+        for schema in (1, 2):
+            with self.subTest(schema=schema):
+                errors = _errors(_plan({**self.base, "files": ["a.py"]}, schema=schema))
+                self.assertIn("node 'a': field 'files' needs schema = 3", errors)
+        self.assertEqual(self._files(["a.py"], schema=3), ("a.py",))
+
+    def test_bad_types_rejected(self):
+        for name, value in [("string", "a.py"), ("number", 3), ("list of numbers", [1]),
+                            ("empty string", [""]), ("blank string", ["  "]),
+                            ("mixed", ["a.py", 2])]:
+            with self.subTest(name):
+                errors = _errors(_plan({**self.base, "files": value}, schema=3))
+                self.assertIn("node 'a': 'files' must be a list of non-empty strings", errors)
+
+    def test_paths_are_normalised(self):
+        self.assertEqual(self._files(["./a/b.py", "a/", "./c/"]), ("a/b.py", "a", "c"))
+
+    def test_duplicates_in_one_node_count_once(self):
+        self.assertEqual(self._files(["a.py", "./a.py", "b.py", "a.py"]), ("a.py", "b.py"))
 
 
 if __name__ == "__main__":

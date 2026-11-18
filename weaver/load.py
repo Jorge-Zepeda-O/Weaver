@@ -10,14 +10,14 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from .model import (DECISION_PATTERN, DIMENSIONS, KIND_SINCE, KINDS, NODE_ID_PATTERN,
-                    SCHEMA_VERSION, SCHEMA_VERSIONS, STATUSES, Dep, Node, Plan)
+from .model import (DECISION_PATTERN, DIMENSIONS, FIELD_SINCE, KIND_SINCE, KINDS,
+                    NODE_ID_PATTERN, SCHEMA_VERSION, SCHEMA_VERSIONS, STATUSES, Dep, Node, Plan)
 
 _NODE_ID = re.compile(rf"^{NODE_ID_PATTERN}$")
 _DECISION = re.compile(rf"^{DECISION_PATTERN}$")
 _PLAN_KEYS = {"schema", "title", "goal", "caption"}
 _NODE_KEYS = {"id", "title", "kind", "status", "group", "notes", "deps", "runtime_deps",
-              "verify", "decisions", *DIMENSIONS}
+              "verify", "decisions", "files", *DIMENSIONS}
 # Keys an older plan may still carry, with what replaced them.
 _RENAMED = {"owner": "group"}
 _DEP_KEYS: dict[str, str] = {"deps": "build", "runtime_deps": "runtime"}
@@ -95,6 +95,9 @@ def _parse_node(index: int, raw: Any, schema: int, errors: list[str]) -> Node | 
     dimensions = {name: _code(raw, name, tuple(codes), where, errors)
                   for name, codes in DIMENSIONS.items()}
     decisions = _decisions(raw, where, errors)
+    if "files" in raw and FIELD_SINCE["files"] > schema:
+        errors.append(f"{where}: field 'files' needs schema = {FIELD_SINCE['files']}")
+    files = _files(raw, where, errors)
 
     deps: list[Dep] = []
     for key, seam in _DEP_KEYS.items():
@@ -108,7 +111,7 @@ def _parse_node(index: int, raw: Any, schema: int, errors: list[str]) -> Node | 
         return None
     return Node(id=node_id, title=title, kind=kind, status=status,  # type: ignore[arg-type]
                 group=group, notes=notes, deps=tuple(deps), verify=verify,
-                decisions=decisions, **dimensions)
+                decisions=decisions, files=files, **dimensions)
 
 
 def _string(table: dict[str, Any], key: str, where: str, errors: list[str],
@@ -141,7 +144,7 @@ def _check_schema(header: dict[str, Any], errors: list[str]) -> int:
     only their own faults.
     """
     version = header.get("schema")
-    readable = " or ".join(str(v) for v in SCHEMA_VERSIONS)
+    readable = " or ".join([", ".join(map(str, SCHEMA_VERSIONS[:-1])), str(SCHEMA_VERSIONS[-1])])
     if version is None:
         errors.append(f"[plan]: missing 'schema' (this version of weaver reads schema = {readable})")
     elif not isinstance(version, int) or isinstance(version, bool):
@@ -174,6 +177,15 @@ def _decisions(raw: dict[str, Any], where: str, errors: list[str]) -> tuple[str,
     bad = [d for d in value if not _DECISION.match(d)]
     errors += [f"{where}: '{d}' is not a decision handle (D-3, or project:D-3)" for d in bad]
     return () if bad else tuple(value)
+
+
+def _files(raw: dict[str, Any], where: str, errors: list[str]) -> tuple[str, ...]:
+    """Paths a node touches, normalised (no leading ``./`` or trailing ``/``) and deduplicated."""
+    value = raw.get("files", [])
+    if not isinstance(value, list) or not all(isinstance(f, str) and f.strip() for f in value):
+        errors.append(f"{where}: 'files' must be a list of non-empty strings")
+        return ()
+    return tuple(dict.fromkeys(f.removeprefix("./").removesuffix("/") for f in value))
 
 
 def _check_ids_and_refs(nodes: list[Node], errors: list[str]) -> None:

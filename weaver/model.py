@@ -24,10 +24,11 @@ SEAMS: tuple[Seam, ...] = ("build", "runtime")
 STATUS_SYMBOL: dict[str, str] = {"todo": "○", "doing": "◐", "done": "✓", "blocked": "✕"}
 
 # Every plan-format version this weaver reads (D-4); the newest is the default.
-SCHEMA_VERSIONS = (1, 2)
+SCHEMA_VERSIONS = (1, 2, 3)
 SCHEMA_VERSION = SCHEMA_VERSIONS[-1]
 # What a version added: a plan using it must declare at least that version.
 KIND_SINCE: dict[str, int] = {"release": 2}
+FIELD_SINCE: dict[str, int] = {"files": 3}
 
 # Node ids end up in Graphviz source, SVG element ids and HTML, so they are
 # restricted to characters that are safe verbatim in all three.
@@ -79,6 +80,7 @@ class Node:
     complexity: str = ""
     verify: str = ""
     decisions: tuple[str, ...] = ()
+    files: tuple[str, ...] = ()
 
     @property
     def unguarded(self) -> bool:
