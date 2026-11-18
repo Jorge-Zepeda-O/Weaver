@@ -46,6 +46,7 @@ COMPLEXITY_WIDTH = {"T": "1", "E": "1.5", "M": "2.5", "H": "3.5", "N": "5", "?":
 # like a wall and ask to be broken down. "?" ranks worst, as many as stream.
 AMOUNT_OUTLINES = {"1": "1", "F": "2", "N": "3", "B": "4", "S": "5", "?": "5"}
 LANE_COLOUR = LIGHT["lane"]
+REWORK_COLOUR = LIGHT["rework"]
 _PROLOG = re.compile(r"<\?xml[^>]*\?>|<!DOCTYPE[^>]*>")
 # Graphviz 2.43 writes '-' in attribute values as '&#45;'; ids and classes are restored
 # to their literal form so the contract holds for text matching as well as for parsers.
@@ -142,6 +143,10 @@ def to_dot(plan: Plan) -> str:
     for edge in plan.edges():
         style = ", style=dashed" if edge.seam == "runtime" else ""
         lines.append(f'  "{edge.source}" -> "{edge.target}" [class="seam-{edge.seam}"{style}];')
+    # A3-11: a rework points from the fixed node to its fix, dotted, and leaves the layout alone.
+    for node in plan.nodes:
+        lines += [f'  "{target}" -> "{node.id}" [class="rework", style=dotted, color="{REWORK_COLOUR}", '
+                  f'arrowhead=empty, constraint=false];' for target in node.reworks]
     lines.append("}")
     return "\n".join(lines) + "\n"
 

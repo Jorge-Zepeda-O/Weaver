@@ -266,10 +266,13 @@ _SCRIPT = _GESTURES + _PANEL + """
     }
     for (const link of links) {
       const li = document.createElement("li");
-      const seam = document.createElement("span");
-      seam.className = "seam";
-      seam.textContent = " (" + link.seam + " seam)";
-      li.append(document.createTextNode(link.id + " — " + plan.nodes[link.id].title), seam);
+      li.append(document.createTextNode(link.id + " — " + plan.nodes[link.id].title));
+      if (link.seam) {
+        const seam = document.createElement("span");
+        seam.className = "seam";
+        seam.textContent = " (" + link.seam + " seam)";
+        li.append(seam);
+      }
       list.append(li);
     }
   };
@@ -309,6 +312,8 @@ _SCRIPT = _GESTURES + _PANEL + """
     field("notes").textContent = node.notes || "—";
     fillList("deps", node.deps);
     fillList("dependents", node.dependents);
+    fillList("reworks", node.reworks);
+    fillList("reworked_by", node.reworked_by);
     fillOverlaps(node.overlaps);
     if (!dialog.open) dialog.showModal();
   };
@@ -352,6 +357,8 @@ _DIALOG = """<dialog id="node-dialog" aria-labelledby="dialog-title">
     <dt>Decisions</dt><dd data-field="decisions"></dd>
     <dt>Depends on</dt><dd><ul data-field="deps"></ul></dd>
     <dt>Dependents</dt><dd><ul data-field="dependents"></ul></dd>
+    <dt>Reworks</dt><dd><ul data-field="reworks"></ul></dd>
+    <dt>Reworked by</dt><dd><ul data-field="reworked_by"></ul></dd>
     <dt>Overlaps</dt><dd><ul data-field="overlaps"></ul></dd>
   </dl>
   <p class="notes" data-field="notes"></p>
@@ -368,6 +375,10 @@ def plan_data(plan: Plan) -> dict[str, Any]:
     dependents: dict[str, list[dict[str, str]]] = {n.id: [] for n in plan.nodes}
     for edge in plan.edges():
         dependents[edge.source].append({"id": edge.target, "seam": edge.seam})
+    reworked_by: dict[str, list[dict[str, str]]] = {n.id: [] for n in plan.nodes}
+    for n in plan.nodes:  # A3-11: the fixed node names its fixes
+        for target in n.reworks:
+            reworked_by[target].append({"id": n.id})
     shared: dict[str, list[dict[str, str]]] = {n.id: [] for n in plan.nodes}
     for overlap in overlaps(plan):  # A3-4: each side lists the other
         for here, other in ((overlap.a, overlap.b), (overlap.b, overlap.a)):
@@ -379,15 +390,16 @@ def plan_data(plan: Plan) -> dict[str, Any]:
                "complexity": n.complexity, "verify": n.verify, "decisions": list(n.decisions),
                "unguarded": n.unguarded,
                "deps": [{"id": d.id, "seam": d.seam} for d in n.deps],
-               "dependents": dependents[n.id], "overlaps": shared[n.id]}
+               "dependents": dependents[n.id], "overlaps": shared[n.id],
+               "reworks": [{"id": r} for r in n.reworks], "reworked_by": reworked_by[n.id]}
         for n in plan.nodes
     }}
 
 
 def _swatch(shape: str = "box", fill: str = LIGHT["canvas"], stroke: str = LIGHT["ink"],
-            width: str = "1", dashed: bool = False) -> str:
+            width: str = "1", dashed: bool = False, dotted: bool = False) -> str:
     """A small inline SVG key. Presentation attributes only: the CSP refuses style=""."""
-    dash = ' stroke-dasharray="3 2"' if dashed else ""
+    dash = ' stroke-dasharray="3 2"' if dashed else ' stroke-dasharray="1 2"' if dotted else ""
     paint = f'fill="{fill}" stroke="{stroke}" stroke-width="{width}"{dash}'
     body = {
         "box": f'<rect x="2" y="2" width="18" height="12" rx="3" {paint}/>',
@@ -425,7 +437,9 @@ def _legend() -> str:
                                 (_swatch("hexagon", dashed=True), "unguarded merge (no verify)"),
                                 (_swatch("octagon", stroke=RELEASE_COLOUR), "release")])),
         ("Seam (edge)", items([(_swatch("line"), "build seam"),
-                               (_swatch("line", dashed=True), "runtime seam")])),
+                               (_swatch("line", dashed=True), "runtime seam"),
+                               (_swatch("line", stroke=LIGHT["rework"], dotted=True),
+                                "rework (from the fixed node to its fix)")])),
         ("Scope (text colour)", items([(_text_swatch(SCOPE_TEXT_COLOUR[c]), f"{GLYPHS['scope'][c]} {c} {n}")
                                        for c, n in DIMENSIONS["scope"].items()])),
         ("Complexity (border colour, weight)",

@@ -16,6 +16,8 @@ LIGHT: dict[str, str] = {
     "rule": "#94a3b8",
     # The overlap mark (A3-4) in one clear alert colour, whatever the node's scope.
     "alert": "#d97706",
+    # A rework edge (A3-11): from the fixed node to the node that fixes it.
+    "rework": "#0d9488",
     # Status fills step in lightness as well as hue (todo > done > doing > blocked),
     # so they stay apart without full colour vision; the symbol carries status anyway (B3).
     "status-todo": "#ffffff", "status-done": "#d1fae5",
