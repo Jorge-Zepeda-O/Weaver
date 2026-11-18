@@ -254,5 +254,78 @@ class TestFiles(unittest.TestCase):
         self.assertEqual(self._files(["a.py", "./a.py", "b.py", "a.py"]), ("a.py", "b.py"))
 
 
+
+class TestAcknowledgements(unittest.TestCase):
+    """A3-3: a plan-level [[overlap]] acknowledges an overlap; it names the file and the
+    nodes, and must say why (the only source: no node-level field)."""
+    NODES = [{"id": "a", "title": "a", "group": "g", "files": ["f.py"]},
+             {"id": "b", "title": "b", "group": "h", "files": ["f.py", "x.py"]},
+             {"id": "c", "title": "c", "files": ["x.py"]}]
+
+    def _data(self, *acks, schema=3) -> dict:
+        return {**_plan(*self.NODES, schema=schema), "overlap": list(acks)}
+
+    def test_entry_loads_with_a_normalised_file(self):
+        plan = parse_plan(self._data({"file": "./f.py", "nodes": ["a", "b"], "reason": "r"}))
+        (ack,) = plan.acknowledgements
+        self.assertEqual((ack.file, ack.nodes, ack.reason), ("f.py", ("a", "b"), "r"))
+
+    def test_no_entries_means_none(self):
+        self.assertEqual(parse_plan(_plan(*self.NODES, schema=3)).acknowledgements, ())
+
+    def test_entry_needs_schema_3(self):
+        for schema in (1, 2):
+            with self.subTest(schema=schema):
+                errors = _errors(self._data({"file": "f.py", "nodes": ["a", "b"], "reason": "r"},
+                                            schema=schema))
+                self.assertIn("[[overlap]] needs schema = 3", errors)
+
+    def test_reason_is_required(self):
+        """Silencing costs a sentence."""
+        for reason in (None, "", "   ", 3):
+            with self.subTest(reason=reason):
+                ack = {"file": "f.py", "nodes": ["a", "b"]}
+                if reason is not None:
+                    ack["reason"] = reason
+                self.assertIn("overlap #1: 'reason' is required: say why the overlap is safe",
+                              _errors(self._data(ack)))
+
+    def test_nodes_name_at_least_two_different_nodes(self):
+        for nodes in (None, [], ["a"], ["a", "a"], "a,b", ["a", 1]):
+            with self.subTest(nodes=nodes):
+                ack = {"file": "f.py", "reason": "r"}
+                if nodes is not None:
+                    ack["nodes"] = nodes
+                self.assertIn("overlap #1: 'nodes' must list at least two different node ids",
+                              _errors(self._data(ack)))
+
+    def test_file_is_a_non_empty_path(self):
+        for file in (None, "", "./", 7):
+            with self.subTest(file=file):
+                ack = {"nodes": ["a", "b"], "reason": "r"}
+                if file is not None:
+                    ack["file"] = file
+                self.assertIn("overlap #1: 'file' must be a non-empty string", _errors(self._data(ack)))
+
+    def test_unknown_node_is_an_error(self):
+        errors = _errors(self._data({"file": "f.py", "nodes": ["a", "zz"], "reason": "r"}))
+        self.assertIn("overlap #1: unknown node 'zz'", errors)
+
+    def test_every_named_node_must_list_the_file(self):
+        """A typo in the file cannot acknowledge nothing in silence."""
+        errors = _errors(self._data({"file": "f.py", "nodes": ["a", "c"], "reason": "r"},
+                                    {"file": "F.py", "nodes": ["a", "b"], "reason": "r"}))
+        self.assertIn("overlap #1: node 'c' does not list 'f.py' in its files", errors)
+        self.assertIn("overlap #2: node 'a' does not list 'F.py' in its files", errors)
+
+    def test_unknown_key_is_an_error(self):
+        errors = _errors(self._data({"file": "f.py", "nodes": ["a", "b"], "reason": "r", "why": "x"}))
+        self.assertIn("overlap #1: unknown key 'why'", errors)
+
+    def test_overlap_must_be_tables(self):
+        data = {**_plan(*self.NODES, schema=3), "overlap": "f.py"}
+        self.assertIn("'overlap' must be a list of [[overlap]] tables", _errors(data))
+
+
 if __name__ == "__main__":
     unittest.main()

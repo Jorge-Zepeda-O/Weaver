@@ -28,7 +28,8 @@ SCHEMA_VERSIONS = (1, 2, 3)
 SCHEMA_VERSION = SCHEMA_VERSIONS[-1]
 # What a version added: a plan using it must declare at least that version.
 KIND_SINCE: dict[str, int] = {"release": 2}
-FIELD_SINCE: dict[str, int] = {"files": 3}
+# Node fields, and the plan-level [[overlap]] table, by the schema that introduced them.
+FIELD_SINCE: dict[str, int] = {"files": 3, "overlap": 3}
 
 # Node ids end up in Graphviz source, SVG element ids and HTML, so they are
 # restricted to characters that are safe verbatim in all three.
@@ -118,6 +119,7 @@ class Plan:
     caption: str = ""
     goal: str = ""
     schema: int = SCHEMA_VERSION
+    acknowledgements: tuple[Acknowledgement, ...] = ()
 
     def groups(self) -> tuple[str, ...]:
         """Named groups in order of first appearance; ungrouped nodes belong to none."""
@@ -138,11 +140,28 @@ class Plan:
 
 
 @dataclass(frozen=True)
+class Acknowledgement:
+    """A plan-level ``[[overlap]]`` entry (A3-3): ``file`` may be touched by every pair of
+    ``nodes``, because of ``reason``. The only source; a node carries no such field."""
+    file: str
+    nodes: tuple[str, ...]
+    reason: str
+
+
+@dataclass(frozen=True)
 class Overlap:
-    """Two nodes on separate tracks that both touch ``file`` (``a`` before ``b`` in plan order)."""
+    """Two nodes on separate tracks that both touch ``file`` (``a`` before ``b`` in plan order).
+
+    ``reason`` comes from the plan's ``[[overlap]]`` entry naming both; ``""`` when none does.
+    An acknowledged overlap is still an overlap: it is reported, never hidden (A3-3)."""
     file: str
     a: str
     b: str
+    reason: str = ""
+
+    @property
+    def acknowledged(self) -> bool:
+        return bool(self.reason)
 
 
 def overlaps(plan: Plan) -> tuple[Overlap, ...]:
@@ -175,5 +194,7 @@ def overlaps(plan: Plan) -> tuple[Overlap, ...]:
                     continue
                 if a.id in ancestors_of(b.id) or b.id in ancestors_of(a.id):
                     continue
-                found.append(Overlap(file, a.id, b.id))
+                reason = next((ack.reason for ack in plan.acknowledgements
+                               if ack.file == file and {a.id, b.id} <= set(ack.nodes)), "")
+                found.append(Overlap(file, a.id, b.id, reason))
     return tuple(found)
