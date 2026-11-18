@@ -4,8 +4,8 @@ Every node statement carries ``id="node-<id>"``, so the SVG group for node X
 is ``<g id="node-X" class="node">``. That id is the contract with the HTML view
 (A3) and the PDF view (A5).
 
-Encoding: shape = kind, fill = status, edge style = seam, lane = group, colour of
-the scope code = scope, border colour and weight = complexity, outline count = amount,
+Encoding: shape = kind, fill = status, edge style = seam, lane = group, text
+colour = scope, border colour and weight = complexity, outline count = amount,
 dashed border = unguarded merge. Status and the dimension codes are printed in
 the label too, so colour never carries meaning alone.
 """
@@ -28,6 +28,7 @@ _SHAPE = {"atom": ("box", "rounded,filled"), "merge": ("hexagon", "filled"),
           "release": ("octagon", "filled")}
 # A release's text is bold purple, a colour no scope uses (D-15); its scope stays in the code.
 RELEASE_COLOUR = LIGHT["release"]
+RULE_COLOUR = LIGHT["rule"]
 
 
 def _token_map(prefix: str, codes: str) -> dict[str, str]:
@@ -77,14 +78,21 @@ def _html(text: str) -> str:
 
 
 def _card(node: Node) -> str:
-    """B4: the node's label as a table: bold id and status, the wrapped title, the codes."""
-    title = textwrap.wrap(node.title, TITLE_WIDTH, break_long_words=False, break_on_hyphens=False)
-    rows = [f"<B>{_html(node.id)}</B> · {_html(node.status_label())}",
-            "<BR/>".join(_html(line) for line in title)]
-    if node.dimension_codes():
-        rows.append(_html(node.dimension_label()))
-    cells = "".join(f"<TR><TD>{row}</TD></TR>" for row in rows)
-    return f'<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">{cells}</TABLE>>'
+    """B4, laid out per A3-7 (layout C): the header (bold id, status) across the top over a
+    rule; below it the wrapped title, and the codes in a right column behind a divider.
+    Marker and letter sit in separate cells, so the letters line up although the markers
+    differ in width."""
+    title = "<BR/>".join(_html(line) for line in textwrap.wrap(
+        node.title, TITLE_WIDTH, break_long_words=False, break_on_hyphens=False))
+    codes = node.dimension_codes()
+    header = f"<B>{_html(node.id)}</B> · {_html(node.status_label())}"
+    table = f'<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" COLOR="{RULE_COLOUR}">'
+    if not codes:
+        return f"<{table}<TR><TD>{header}</TD></TR><HR/><TR><TD>{title}</TD></TR></TABLE>>"
+    rows = [f'<TD>{_html(code[0])}</TD><TD ALIGN="LEFT">{_html(code[1:])}</TD>' for code in codes]
+    rows[0] = f'<TD ROWSPAN="{len(codes)}">{title}</TD><VR/>' + rows[0]
+    body = "".join(f"<TR>{row}</TR>" for row in rows)
+    return f'<{table}<TR><TD COLSPAN="3">{header}</TD></TR><HR/>{body}</TABLE>>'
 
 
 def _node_statement(node: Node, indent: str = "  ") -> str:
@@ -148,13 +156,29 @@ def render_svg(plan: Plan) -> str:
 
 # A3-6: Graphviz 2.43 draws an HTML label as one <text> per run, each anchored at its start
 # with widths measured in the font Graphviz found. A browser that draws a narrower or wider
-# face shifts every line sideways. Each line becomes one middle-anchored <text> at the
-# shape's centre; runs that differ (the bold id) become <tspan>s inside it.
+# face shifts every line sideways. Each line becomes one middle-anchored <text>; runs that
+# differ (the bold id) become <tspan>s inside it.
+# A3-7: the card's rules are drawn as flat polygons, and they give every centre. The header
+# rule spans the table, so its middle centres the header; the title centres between the
+# rule's left end and the divider; a marker centres between the divider and its letter, and
+# the letters keep their shared start. Without rules, everything centres on the shape.
 _NODE_GROUP = re.compile(r'(<g id="node-[^"]*" class="node[^"]*">)(.*?)(</g>)', re.S)
 _SHAPE_COORDS = re.compile(r'<(?:polygon|path) [^>]*?(?:points|d)="([^"]*)"')
+_POLYGON = re.compile(r'<polygon ([^>]*?)points="([^"]*)"')
 _TEXT_RUN = re.compile(r'<text ([^>]*)>([^<]*)</text>\n?')
 _ATTR = re.compile(r'([\w:-]+)="([^"]*)"')
 _POSITION = ("text-anchor", "x")
+
+Run = tuple[dict[str, str], str]
+
+
+def _coords(points: str) -> tuple[list[float], list[float]]:
+    numbers = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", points)]
+    return numbers[0::2], numbers[1::2]
+
+
+def _number(value: float) -> str:
+    return f"{value:.2f}".rstrip("0").rstrip(".")
 
 
 def _centred_node(match: re.Match) -> str:
@@ -163,20 +187,57 @@ def _centred_node(match: re.Match) -> str:
     runs = list(_TEXT_RUN.finditer(body))
     if shape is None or not runs:
         return match.group(0)
-    xs = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", shape.group(1))][0::2]
-    centre = f"{(min(xs) + max(xs)) / 2:.2f}".rstrip("0").rstrip(".")
-    lines: list[list[tuple[dict[str, str], str]]] = []
+    xs, _ = _coords(shape.group(1))
+    header_centre = title_centre = (min(xs) + max(xs)) / 2
+    rule_y = divider = None
+    for polygon in _POLYGON.finditer(body):
+        px, py = _coords(polygon.group(2))
+        if len(set(py)) == 1 and rule_y is None:
+            rule_y, header_centre = py[0], (min(px) + max(px)) / 2
+            title_centre, rule_left = header_centre, min(px)
+        elif len(set(px)) == 1 and divider is None:
+            divider = px[0]
+    if rule_y is not None and divider is not None:
+        title_centre = (rule_left + divider) / 2
+
+    lines: dict[tuple[bool, str], list[Run]] = {}
     for run in runs:
         attrs = dict(_ATTR.findall(run.group(1)))
-        if lines and lines[-1][0][0]["y"] == attrs["y"]:
-            lines[-1].append((attrs, run.group(2)))
+        is_code = divider is not None and float(attrs["x"]) > divider
+        lines.setdefault((is_code, attrs["y"]), []).append((attrs, run.group(2)))
+    texts = []
+    for (is_code, y), line in lines.items():
+        if is_code:
+            texts.append(_code_row(line, divider))
         else:
-            lines.append([(attrs, run.group(2))])
-    texts = "".join(_centred_line(line, centre) for line in lines)
-    return head + body[:runs[0].start()] + texts + body[runs[-1].end():] + tail
+            above_rule = rule_y is None or float(y) < rule_y
+            texts.append(_centred_line(line, _number(header_centre if above_rule else title_centre)))
+    rest = _POLYGON.sub(_marked_rule, body[runs[-1].end():])
+    return head + body[:runs[0].start()] + "".join(texts) + rest + tail
 
 
-def _centred_line(line: list[tuple[dict[str, str], str]], centre: str) -> str:
+def _marked_rule(match: re.Match) -> str:
+    """A flat polygon is a card rule: classed, so the page's shape styles pass it by."""
+    xs, ys = _coords(match.group(2))
+    if len(set(xs)) == 1 or len(set(ys)) == 1:
+        return f'<polygon class="rule" {match.group(1)}points="{match.group(2)}"'
+    return match.group(0)
+
+
+def _code_row(line: list[Run], divider: float) -> str:
+    """A marker centred between the divider and its letter; the letter left as drawn."""
+    if len(line) != 2:
+        return "".join(_text(attrs, content) for attrs, content in line)
+    marker, letter = sorted(line, key=lambda run: float(run[0]["x"]))
+    centre = _number((divider + float(letter[0]["x"])) / 2)
+    return _centred_line([marker], centre) + _text(*letter)
+
+
+def _text(attrs: dict[str, str], content: str) -> str:
+    return "<text " + " ".join(f'{k}="{v}"' for k, v in attrs.items()) + f">{content}</text>\n"
+
+
+def _centred_line(line: list[Run], centre: str) -> str:
     first = line[0][0]
     common = {k: v for k, v in first.items()
               if k not in _POSITION and all(attrs.get(k) == v for attrs, _ in line)}

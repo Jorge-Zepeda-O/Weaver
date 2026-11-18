@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 from weaver import load_plan, parse_plan
-from weaver.dot import RELEASE_COLOUR, TITLE_WIDTH, render_svg, to_dot
+from weaver.dot import RELEASE_COLOUR, RULE_COLOUR, TITLE_WIDTH, render_svg, to_dot
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "weaver_plan.toml"
 SVG_NS = "{http://www.w3.org/2000/svg}"
@@ -26,9 +26,9 @@ def _label(statement: str) -> str:
     return re.search(r"label=<(.*?)>, shape=", statement).group(1)
 
 
-def _rows(statement: str) -> list[str]:
-    """Each table row's cell content, in order."""
-    return re.findall(r"<TR><TD>(.*?)</TD></TR>", _label(statement))
+def _cells(statement: str) -> list[str]:
+    """Each table cell's content, in order: header, title, then marker and letter per code."""
+    return re.findall(r"<TD[^>]*>(.*?)</TD>", _label(statement))
 
 
 def _node_group(svg: str, node_id: str) -> ET.Element:
@@ -46,6 +46,33 @@ def _shape_centre_x(group: ET.Element) -> float:
     numbers = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", shape.get("points") or shape.get("d"))]
     xs = numbers[0::2]
     return (min(xs) + max(xs)) / 2
+
+
+def _card_rules(group: ET.Element) -> tuple[tuple[float, float, float], float | None]:
+    """The header rule's left end, right end and height, and the divider's x (None when the
+    card has no codes), read from the polygons classed as rules."""
+    rule = divider = None
+    for polygon in group.iter(f"{SVG_NS}polygon"):
+        if polygon.get("class") != "rule":
+            continue
+        numbers = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", polygon.get("points"))]
+        xs, ys = numbers[0::2], numbers[1::2]
+        if len(set(ys)) == 1:
+            rule = (min(xs), max(xs), ys[0])
+        else:
+            divider = xs[0]
+    assert rule is not None, "no header rule found"
+    return rule, divider
+
+
+def _layout_plan():
+    """Every card shape, with and without codes: atom, merge, release."""
+    return parse_plan({"plan": {"schema": 2, "title": "T"}, "node": [
+        {"id": "a", "title": "A title long enough to wrap onto two lines", "scope": "L",
+         "complexity": "M"},
+        {"id": "m", "title": "y", "kind": "merge", "verify": "v", "deps": ["a"], "amount": "1"},
+        {"id": "r", "title": "z", "kind": "release", "verify": "v", "deps": ["m"], "scope": "G"},
+        {"id": "q", "title": "A plain card with no codes at all", "deps": ["a"]}]})
 
 
 def _classes(element: ET.Element) -> set[str]:
@@ -83,7 +110,8 @@ class TestToDot(unittest.TestCase):
         self.assertNotIn("<FONT", statement, "no run of a release's text takes the scope colour")
         self.assertIn('fontname="Helvetica-Bold"', statement)
         self.assertIn(' color="#64748b"', statement, "complexity still owns the border")
-        self.assertEqual(_rows(statement)[-1], "↕P ↔- ⤓E", "scope stays readable in the code")
+        self.assertEqual(_cells(statement)[2:], ["↕", "P", "↔", "-", "⤓", "E"],
+                         "scope stays readable in the code")
 
     def test_fill_follows_status(self):
         cases = [("todo", "#ffffff"), ("doing", "#bfdbfe"), ("done", "#d1fae5"), ("blocked", "#fca5a5")]
@@ -99,19 +127,28 @@ class TestToDot(unittest.TestCase):
         self.assertIn('"a" -> "c" [class="seam-build"];', lines, "build seam must be a plain solid edge")
         self.assertIn('"b" -> "c" [class="seam-runtime", style=dashed];', lines)
 
-    def test_label_is_a_card_of_header_then_title(self):
-        """B4: an HTML-like table, header row (bold id, status) over the title row."""
+    def test_label_is_a_card_of_header_over_a_rule_then_title(self):
+        """B4, A3-7: an HTML-like table, header row (bold id, status), a rule, the title row."""
         dot = to_dot(_plan({"id": "a", "title": "Do it"}))
-        self.assertIn('label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">'
-                      "<TR><TD><B>a</B> · ○ todo</TD></TR><TR><TD>Do it</TD></TR></TABLE>>",
+        self.assertIn(f'label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" COLOR="{RULE_COLOUR}">'
+                      "<TR><TD><B>a</B> · ○ todo</TD></TR><HR/><TR><TD>Do it</TD></TR></TABLE>>",
                       _statement(dot, "a"))
+
+    def test_codes_sit_in_a_right_column_behind_a_divider(self):
+        """A3-7 layout C: the header spans the card; the title fills the left across the code
+        rows; a divider; then marker and letter in separate cells, so the letters line up."""
+        dot = to_dot(_plan({"id": "a", "title": "x", "scope": "L", "complexity": "M"}))
+        self.assertIn('<TR><TD COLSPAN="3"><B>a</B> · ○ todo</TD></TR><HR/>'
+                      '<TR><TD ROWSPAN="3">x</TD><VR/><TD>↕</TD><TD ALIGN="LEFT">L</TD></TR>'
+                      '<TR><TD>↔</TD><TD ALIGN="LEFT">-</TD></TR>'
+                      '<TR><TD>⤓</TD><TD ALIGN="LEFT">M</TD></TR></TABLE>', _label(_statement(dot, "a")))
 
     def test_status_is_printed_so_the_fill_is_never_alone(self):
         """B3: status was the one thing shown by colour alone."""
         for status, mark in [("todo", "○"), ("doing", "◐"), ("done", "✓"), ("blocked", "✕")]:
             with self.subTest(status):
                 dot = to_dot(_plan({"id": "a", "title": "x", "status": status}))
-                self.assertEqual(_rows(_statement(dot, "a"))[0], f"<B>a</B> · {mark} {status}")
+                self.assertEqual(_cells(_statement(dot, "a"))[0], f"<B>a</B> · {mark} {status}")
 
     def test_label_escapes_markup_in_the_title(self):
         """Every character the label language treats as markup becomes an entity."""
@@ -120,19 +157,19 @@ class TestToDot(unittest.TestCase):
                  ("\\N", "\\\\N"), ("a\\\\b", "a\\\\\\\\b")]
         for title, cell in cases:
             with self.subTest(title):
-                self.assertEqual(_rows(_statement(to_dot(_plan({"id": "a", "title": title})), "a"))[1],
+                self.assertEqual(_cells(_statement(to_dot(_plan({"id": "a", "title": title})), "a"))[1],
                                  cell)
 
     def test_long_title_wraps_at_word_boundaries(self):
         title = "Details panel: a stats table on top, icons and colours throughout"
-        lines = _rows(_statement(to_dot(_plan({"id": "a", "title": title})), "a"))[1].split("<BR/>")
+        lines = _cells(_statement(to_dot(_plan({"id": "a", "title": title})), "a"))[1].split("<BR/>")
         self.assertGreater(len(lines), 1, "the title was not wrapped")
         self.assertTrue(all(len(ln) <= TITLE_WIDTH for ln in lines), lines)
         self.assertEqual(" ".join(lines), title, "wrapping lost or changed words")
 
     def test_a_word_longer_than_the_width_is_kept_whole(self):
         word = "x" * (TITLE_WIDTH + 5)
-        self.assertEqual(_rows(_statement(to_dot(_plan({"id": "a", "title": word})), "a"))[1], word)
+        self.assertEqual(_cells(_statement(to_dot(_plan({"id": "a", "title": word})), "a"))[1], word)
 
 
 class TestFindDot(unittest.TestCase):
@@ -179,7 +216,7 @@ class TestSchemaV1Dot(unittest.TestCase):
             with self.subTest(code):
                 statement = _statement(to_dot(_plan({"id": "a", "title": "x", "scope": code})), "a")
                 self.assertIn(f'fontcolor="{colour}"', statement, "scope colours the whole text")
-                self.assertEqual(_rows(statement)[-1], f"↕{code} ↔- ⤓-")
+                self.assertEqual(_cells(statement)[2:], ["↕", code, "↔", "-", "⤓", "-"])
                 self.assertNotIn(' color="', statement, "scope no longer colours the border")
 
     def test_complexity_sets_the_border_colour(self):
@@ -223,15 +260,17 @@ class TestSchemaV1Dot(unittest.TestCase):
 
     def test_label_prints_the_codes_so_colour_is_never_alone(self):
         dot = to_dot(_plan({"id": "a", "title": "x", "scope": "L", "complexity": "M"}))
-        self.assertEqual(_rows(_statement(dot, "a")),
-                         ["<B>a</B> · ○ todo", "x", "↕L ↔- ⤓M"])
+        self.assertEqual(_cells(_statement(dot, "a")),
+                         ["<B>a</B> · ○ todo", "x", "↕", "L", "↔", "-", "⤓", "M"])
 
     def test_code_row_without_a_scope_is_all_ink(self):
         dot = to_dot(_plan({"id": "a", "title": "x", "complexity": "M"}))
-        self.assertEqual(_rows(_statement(dot, "a"))[-1], "↕- ↔- ⤓M")
+        self.assertEqual(_cells(_statement(dot, "a"))[2:], ["↕", "-", "↔", "-", "⤓", "M"])
 
-    def test_no_code_row_when_nothing_is_assessed(self):
-        self.assertEqual(len(_rows(_statement(to_dot(_plan({"id": "a", "title": "x"})), "a"))), 2)
+    def test_no_code_column_when_nothing_is_assessed(self):
+        statement = _statement(to_dot(_plan({"id": "a", "title": "x"})), "a")
+        self.assertEqual(len(_cells(statement)), 2)
+        self.assertNotIn("<VR/>", statement)
 
     def test_groups_become_lanes(self):
         dot = to_dot(_plan({"id": "a", "title": "x", "group": "sub-1"},
@@ -312,24 +351,52 @@ class TestRenderSvg(unittest.TestCase):
         """D-18: the whole text takes the scope colour."""
         svg = render_svg(_plan({"id": "a", "title": "x", "scope": "L", "amount": "F", "complexity": "M"}))
         fills = [t.get("fill") for t in _node_group(svg, "a").iter(f"{SVG_NS}text")]
-        self.assertEqual(fills, ["#15803d"] * 3)
+        self.assertEqual(fills, ["#15803d"] * 8)  # header, title, three markers, three letters
 
-    def test_every_line_is_centred_on_its_node(self):
-        """A3-6: one middle-anchored <text> per line at the shape's centre, so no device's
-        font can shift it; Graphviz anchors each run at its start with its own font widths."""
-        plan = parse_plan({"plan": {"schema": 2, "title": "T"}, "node": [
-            {"id": "a", "title": "A title long enough to wrap onto two lines", "scope": "L",
-             "complexity": "M"},
-            {"id": "m", "title": "y", "kind": "merge", "verify": "v", "deps": ["a"]},
-            {"id": "r", "title": "z", "kind": "release", "verify": "v", "deps": ["m"]}]})
-        svg = render_svg(plan)
-        for node_id in ("a", "m", "r"):
+    def test_every_line_is_centred_on_the_card_rules(self):
+        """A3-6, A3-7: one middle-anchored <text> per line, so no device's font can shift it
+        (Graphviz anchors each run at its start, with its own font's widths). The centres are
+        measured from the rules: the header on the header rule, the title between the rule's
+        left end and the divider, a marker between the divider and its letter. The letters
+        keep one shared start, so they line up."""
+        svg = render_svg(_layout_plan())
+        for node_id in ("a", "m", "r", "q"):
             group = _node_group(svg, node_id)
-            centre = _shape_centre_x(group)
-            for line in group.iter(f"{SVG_NS}text"):
-                with self.subTest(node=node_id, line="".join(line.itertext())):
-                    self.assertEqual(line.get("text-anchor"), "middle")
-                    self.assertAlmostEqual(float(line.get("x")), centre, places=1)
+            (left, right, rule_y), divider = _card_rules(group)
+            header, *rest = group.iter(f"{SVG_NS}text")
+            title = [t for t in rest if divider is None or float(t.get("x")) < divider]
+            codes = [t for t in rest if t not in title]
+            expected = [(header, (left + right) / 2)]
+            expected += [(t, (left + divider) / 2 if divider else (left + right) / 2) for t in title]
+            rows: dict[str, list[ET.Element]] = {}
+            for text in codes:
+                rows.setdefault(text.get("y"), []).append(text)
+            letters = [max(row, key=lambda t: float(t.get("x"))) for row in rows.values()]
+            for marker, letter in zip([min(row, key=lambda t: float(t.get("x"))) for row in rows.values()],
+                                      letters):
+                expected.append((marker, (divider + float(letter.get("x"))) / 2))
+            for text, centre in expected:
+                with self.subTest(node=node_id, line="".join(text.itertext())):
+                    self.assertEqual(text.get("text-anchor"), "middle")
+                    self.assertAlmostEqual(float(text.get("x")), centre, places=1)
+            self.assertLess(float(header.get("y")), rule_y, "the header sits above its rule")
+            self.assertTrue(all(float(t.get("y")) > rule_y for t in rest), "body below the rule")
+            if divider is None:
+                self.assertAlmostEqual((left + right) / 2, _shape_centre_x(group), places=1)
+            else:
+                self.assertEqual(len(rows), 3, "one row per dimension")
+                self.assertEqual({t.get("text-anchor") for t in letters}, {"start"})
+                self.assertEqual(len({t.get("x") for t in letters}), 1, "the letters line up")
+
+    def test_rules_are_classed_and_quiet(self):
+        """A3-7: the rules carry class "rule" and the rule colour, so the page's status fill,
+        border and hover styles pass them by; the shape itself is never classed a rule."""
+        group = _node_group(render_svg(_layout_plan()), "a")
+        polygons = [e for e in group if e.tag in (f"{SVG_NS}polygon", f"{SVG_NS}path")]
+        rules = [p for p in polygons if p.get("class") == "rule"]
+        self.assertEqual(len(rules), 2, "the header rule and the divider")
+        self.assertEqual({(r.get("fill"), r.get("stroke")) for r in rules}, {(RULE_COLOUR, RULE_COLOUR)})
+        self.assertIsNone(polygons[0].get("class"), "the node's shape is not a rule")
 
     def test_header_keeps_the_bold_id_inside_its_line(self):
         svg = render_svg(_plan({"id": "a", "title": "x"}))

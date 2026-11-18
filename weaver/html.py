@@ -31,14 +31,16 @@ def _graph_rules() -> str:
     the PDF. Placed before the hover and focus rules, which win at equal specificity."""
     rules = (
         # Only the filled shape: stacked outlines (amount, D-16) are fill="none" and stay hollow.
-        [f'#viewport g.node.status-{s} :is(polygon, path):not([fill="none"]) '
+        [f'#viewport g.node.status-{s} :is(polygon, path):not([fill="none"], .rule) '
          f"{{ fill: var(--wv-status-{s}); }}" for s in STATUSES]
-        + [f"#viewport g.node.complexity-{c} :is(polygon, path) "
+        + [f"#viewport g.node.complexity-{c} :is(polygon, path):not(.rule) "
            f"{{ stroke: var(--wv-complexity-{c}); }}" for c in _COMPLEXITIES]
         # Scope colours the whole text (D-18); a release's text stays purple (D-15).
         + [f"#viewport g.node.scope-{c}:not(.kind-release) text "
            f"{{ fill: var(--wv-scope-text-{c}); }}" for c in _SCOPES]
         + ["#viewport g.node.kind-release text { fill: var(--wv-release); font-weight: bold; }",
+           # The card's rules (A3-7) stay one quiet colour, whatever the node's status or border.
+           "#viewport g.node polygon.rule { fill: var(--wv-rule); stroke: var(--wv-rule); }",
            "#viewport g.cluster.lane > :is(polygon, path) { stroke: var(--wv-lane); }",
            "#viewport g.cluster.lane > text { fill: var(--wv-lane-text); }"])
     return "\n".join(rules) + "\n"
@@ -64,9 +66,9 @@ button:hover { border-color: var(--wv-accent); }
 #viewport.dragging { cursor: grabbing; }
 #viewport svg { display: block; width: 100%; height: 100%; }
 #viewport g.node { cursor: pointer; }
-#viewport g.node:hover polygon, #viewport g.node:hover path { stroke: var(--wv-accent); stroke-width: 2; }
+#viewport g.node:hover :is(polygon, path):not(.rule) { stroke: var(--wv-accent); stroke-width: 2; }
 #viewport g.node:focus { outline: none; }
-#viewport g.node:focus-visible polygon, #viewport g.node:focus-visible path { stroke: var(--wv-focus); stroke-width: 3; }
+#viewport g.node:focus-visible :is(polygon, path):not(.rule) { stroke: var(--wv-focus); stroke-width: 3; }
 dialog { width: min(36rem, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 1.25rem;
   color: var(--wv-fg); background: var(--wv-panel); border: 1px solid var(--wv-border); border-radius: 10px; }
 dialog::backdrop { background: var(--wv-backdrop); }

@@ -93,13 +93,15 @@ class TestTokens(unittest.TestCase):
         only remain as the fallback for the standalone SVG and the PDF."""
         from weaver.html import _STYLE
         expected = (
-            [f"#viewport g.node.status-{s} :is(polygon, path):not([fill=\"none\"]) "
+            # The card's rules (A3-7) are excluded from the shape styles and get their own.
+            [f"#viewport g.node.status-{s} :is(polygon, path):not([fill=\"none\"], .rule) "
              f"{{ fill: var(--wv-status-{s}); }}" for s in ("todo", "doing", "done", "blocked")]
-            + [f"#viewport g.node.complexity-{c} :is(polygon, path) "
+            + [f"#viewport g.node.complexity-{c} :is(polygon, path):not(.rule) "
                f"{{ stroke: var(--wv-complexity-{c}); }}" for c in ("T", "E", "M", "H", "N", "unknown")]
             + [f"#viewport g.node.scope-{c}:not(.kind-release) text "
                f"{{ fill: var(--wv-scope-text-{c}); }}" for c in ("I", "L", "P", "U", "G", "unknown")]
             + ["#viewport g.node.kind-release text { fill: var(--wv-release); font-weight: bold; }",
+               "#viewport g.node polygon.rule { fill: var(--wv-rule); stroke: var(--wv-rule); }",
                "#viewport g.cluster.lane > :is(polygon, path) { stroke: var(--wv-lane); }",
                "#viewport g.cluster.lane > text { fill: var(--wv-lane-text); }"])
         for rule in expected:
