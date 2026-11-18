@@ -35,8 +35,10 @@ def _graph_rules() -> str:
          f"{{ fill: var(--wv-status-{s}); }}" for s in STATUSES]
         + [f"#viewport g.node.complexity-{c} :is(polygon, path) "
            f"{{ stroke: var(--wv-complexity-{c}); }}" for c in _COMPLEXITIES]
-        + [f"#viewport g.node.scope-{c} text {{ fill: var(--wv-scope-text-{c}); }}" for c in _SCOPES]
-        # After the scope rules: same specificity, so the release's purple wins (D-15).
+        # B4: Graphviz draws one <text> per run and gives a fill only to the coloured run,
+        # the scope code (D-18); a release's text stays purple (D-15).
+        + [f"#viewport g.node.scope-{c}:not(.kind-release) text[fill] "
+           f"{{ fill: var(--wv-scope-text-{c}); }}" for c in _SCOPES]
         + ["#viewport g.node.kind-release text { fill: var(--wv-release); font-weight: bold; }",
            "#viewport g.cluster.lane > :is(polygon, path) { stroke: var(--wv-lane); }",
            "#viewport g.cluster.lane > text { fill: var(--wv-lane-text); }"])
@@ -367,7 +369,7 @@ def _swatch(shape: str = "box", fill: str = LIGHT["canvas"], stroke: str = LIGHT
 
 
 def _text_swatch(colour: str) -> str:
-    """Scope's key: a sample of text in its colour, as the node's text is drawn."""
+    """Scope's key: a sample of text in its colour, as the node's ↕ code is drawn."""
     return (f'<svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true">'
             f'<text x="11" y="12.5" text-anchor="middle" font-size="12" font-weight="bold" '
             f'font-family="sans-serif" fill="{colour}">Aa</text></svg>')
@@ -394,7 +396,7 @@ def _legend() -> str:
                                 (_swatch("octagon", stroke=RELEASE_COLOUR), "release")])),
         ("Seam (edge)", items([(_swatch("line"), "build seam"),
                                (_swatch("line", dashed=True), "runtime seam")])),
-        ("Scope (text colour)", items([(_text_swatch(SCOPE_TEXT_COLOUR[c]), f"{GLYPHS['scope'][c]} {c} {n}")
+        ("Scope (colour of the ↕ code)", items([(_text_swatch(SCOPE_TEXT_COLOUR[c]), f"{GLYPHS['scope'][c]} {c} {n}")
                                        for c, n in DIMENSIONS["scope"].items()])),
         ("Complexity (border colour, weight)",
          items([(_swatch(stroke=COMPLEXITY_COLOUR[c], width=COMPLEXITY_WIDTH[c]), f"{GLYPHS['complexity'][c]} {c} {n}")

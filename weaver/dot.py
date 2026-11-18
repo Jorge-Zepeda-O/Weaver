@@ -4,8 +4,8 @@ Every node statement carries ``id="node-<id>"``, so the SVG group for node X
 is ``<g id="node-X" class="node">``. That id is the contract with the HTML view
 (A3) and the PDF view (A5).
 
-Encoding: shape = kind, fill = status, edge style = seam, lane = group, text
-colour = scope, border colour and weight = complexity, outline count = amount,
+Encoding: shape = kind, fill = status, edge style = seam, lane = group, colour of
+the scope code = scope, border colour and weight = complexity, outline count = amount,
 dashed border = unguarded merge. Status and the dimension codes are printed in
 the label too, so colour never carries meaning alone.
 """
@@ -67,21 +67,40 @@ def _quote(text: str) -> str:
     return '"' + escaped.replace("\r\n", "\n").replace("\n", "\\n") + '"'
 
 
-def _node_statement(node: Node, indent: str = "  ") -> str:
+def _html(text: str) -> str:
+    """Text for an HTML-like label: every markup character becomes an entity, so a title
+    is drawn as written and can never open a tag or end the label. Graphviz still expands
+    escapes like \\N (node name) inside HTML labels, even from an entity, so a backslash
+    is doubled."""
+    return (text.replace("\\", "\\\\").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace('"', "&quot;"))
+
+
+def _card(node: Node) -> str:
+    """B4: the node's label as a table: bold id and status, the wrapped title, the codes.
+    Only the scope code is coloured (D-18); a release's text is all purple (D-15)."""
     title = textwrap.wrap(node.title, TITLE_WIDTH, break_long_words=False, break_on_hyphens=False)
-    head = f"{node.id} · {node.status_label()}"
-    label = _quote("\n".join(filter(None, [head, *title, node.dimension_label()])))
+    rows = [f"<B>{_html(node.id)}</B> · {_html(node.status_label())}",
+            "<BR/>".join(_html(line) for line in title)]
+    codes = [_html(code) for code in node.dimension_codes()]
+    if codes:
+        if node.scope and node.kind != "release":
+            codes[0] = f'<FONT COLOR="{SCOPE_TEXT_COLOUR[node.scope]}">{codes[0]}</FONT>'
+        rows.append(" ".join(codes))
+    cells = "".join(f"<TR><TD>{row}</TD></TR>" for row in rows)
+    return f'<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">{cells}</TABLE>>'
+
+
+def _node_statement(node: Node, indent: str = "  ") -> str:
     shape, style = _SHAPE[node.kind]
     if node.unguarded:
         style += ",dashed"
     style_attr = f'"{style}"' if "," in style else style
-    attrs = [f'id="node-{node.id}"', f'class="{node_classes(node)}"', f"label={label}",
+    attrs = [f'id="node-{node.id}"', f'class="{node_classes(node)}"', f"label={_card(node)}",
              f"shape={shape}", f"style={style_attr}",
              f'fillcolor="{_FILL[node.status]}"']
     if node.kind == "release":
         attrs += [f'fontcolor="{RELEASE_COLOUR}"', 'fontname="Helvetica-Bold"']
-    elif node.scope:
-        attrs.append(f'fontcolor="{SCOPE_TEXT_COLOUR[node.scope]}"')
     if node.complexity:
         attrs += [f'color="{COMPLEXITY_COLOUR[node.complexity]}"',
                   f"penwidth={COMPLEXITY_WIDTH[node.complexity]}"]

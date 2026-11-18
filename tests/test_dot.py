@@ -21,6 +21,22 @@ def _statement(dot: str, node_id: str) -> str:
     return line
 
 
+def _label(statement: str) -> str:
+    """The HTML-like label's markup, between ``label=<`` and its closing ``>``."""
+    return re.search(r"label=<(.*?)>, shape=", statement).group(1)
+
+
+def _rows(statement: str) -> list[str]:
+    """Each table row's cell content, in order."""
+    return re.findall(r"<TR><TD>(.*?)</TD></TR>", _label(statement))
+
+
+def _node_text(svg: str, node_id: str) -> list[str]:
+    """The text runs drawn inside one node, in document order."""
+    group = next(g for g in ET.fromstring(svg).iter(f"{SVG_NS}g") if g.get("id") == f"node-{node_id}")
+    return [t.text or "" for t in group.iter(f"{SVG_NS}text")]
+
+
 def _classes(element: ET.Element) -> set[str]:
     return set(element.get("class", "").split())
 
@@ -53,9 +69,10 @@ class TestToDot(unittest.TestCase):
         self.assertIn("shape=octagon, style=filled", statement)
         self.assertIn(f'fontcolor="{RELEASE_COLOUR}"', statement)
         self.assertEqual(statement.count("fontcolor="), 1, "the release colour wins over scope's")
+        self.assertNotIn("<FONT", statement, "no run of a release's text takes the scope colour")
         self.assertIn('fontname="Helvetica-Bold"', statement)
         self.assertIn(' color="#64748b"', statement, "complexity still owns the border")
-        self.assertIn("↕P", statement, "scope stays readable in the code")
+        self.assertEqual(_rows(statement)[-1], "↕P ↔- ⤓E", "scope stays readable in the code")
 
     def test_fill_follows_status(self):
         cases = [("todo", "#ffffff"), ("doing", "#bfdbfe"), ("done", "#d1fae5"), ("blocked", "#fca5a5")]
@@ -71,33 +88,40 @@ class TestToDot(unittest.TestCase):
         self.assertIn('"a" -> "c" [class="seam-build"];', lines, "build seam must be a plain solid edge")
         self.assertIn('"b" -> "c" [class="seam-runtime", style=dashed];', lines)
 
-    def test_label_is_id_and_status_then_title(self):
+    def test_label_is_a_card_of_header_then_title(self):
+        """B4: an HTML-like table, header row (bold id, status) over the title row."""
         dot = to_dot(_plan({"id": "a", "title": "Do it"}))
-        self.assertIn('label="a · ○ todo\\nDo it"', _statement(dot, "a"))
+        self.assertIn('label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">'
+                      "<TR><TD><B>a</B> · ○ todo</TD></TR><TR><TD>Do it</TD></TR></TABLE>>",
+                      _statement(dot, "a"))
 
     def test_status_is_printed_so_the_fill_is_never_alone(self):
         """B3: status was the one thing shown by colour alone."""
         for status, mark in [("todo", "○"), ("doing", "◐"), ("done", "✓"), ("blocked", "✕")]:
             with self.subTest(status):
                 dot = to_dot(_plan({"id": "a", "title": "x", "status": status}))
-                self.assertIn(f'label="a · {mark} {status}\\nx"', _statement(dot, "a"))
+                self.assertEqual(_rows(_statement(dot, "a"))[0], f"<B>a</B> · {mark} {status}")
 
-    def test_label_escapes_backslash_and_quote(self):
-        dot = to_dot(_plan({"id": "a", "title": 'say "hi" \\N'}))
-        self.assertIn('label="a · ○ todo\\nsay \\"hi\\" \\\\N"', _statement(dot, "a"))
+    def test_label_escapes_markup_in_the_title(self):
+        """Every character the label language treats as markup becomes an entity."""
+        cases = [('say "hi"', "say &quot;hi&quot;"), ("a & b", "a &amp; b"),
+                 ("<b>x</b>", "&lt;b&gt;x&lt;/b&gt;"), ("&amp;", "&amp;amp;"),
+                 ("\\N", "\\\\N"), ("a\\\\b", "a\\\\\\\\b")]
+        for title, cell in cases:
+            with self.subTest(title):
+                self.assertEqual(_rows(_statement(to_dot(_plan({"id": "a", "title": title})), "a"))[1],
+                                 cell)
 
     def test_long_title_wraps_at_word_boundaries(self):
         title = "Details panel: a stats table on top, icons and colours throughout"
-        label = _statement(to_dot(_plan({"id": "a", "title": title})), "a")
-        lines = re.search(r'label="(.*?)", ', label).group(1).split("\\n")
-        self.assertGreater(len(lines), 2, "the title was not wrapped")
+        lines = _rows(_statement(to_dot(_plan({"id": "a", "title": title})), "a"))[1].split("<BR/>")
+        self.assertGreater(len(lines), 1, "the title was not wrapped")
         self.assertTrue(all(len(ln) <= TITLE_WIDTH for ln in lines), lines)
-        self.assertEqual(" ".join(lines[1:]), title, "wrapping lost or changed words")
+        self.assertEqual(" ".join(lines), title, "wrapping lost or changed words")
 
     def test_a_word_longer_than_the_width_is_kept_whole(self):
         word = "x" * (TITLE_WIDTH + 5)
-        self.assertIn(f'label="a · ○ todo\\n{word}"',
-                      _statement(to_dot(_plan({"id": "a", "title": word})), "a"))
+        self.assertEqual(_rows(_statement(to_dot(_plan({"id": "a", "title": word})), "a"))[1], word)
 
 
 class TestFindDot(unittest.TestCase):
@@ -143,7 +167,9 @@ class TestSchemaV1Dot(unittest.TestCase):
         for code, colour in cases:
             with self.subTest(code):
                 statement = _statement(to_dot(_plan({"id": "a", "title": "x", "scope": code})), "a")
-                self.assertIn(f'fontcolor="{colour}"', statement)
+                self.assertEqual(_rows(statement)[-1],
+                                 f'<FONT COLOR="{colour}">↕{code}</FONT> ↔- ⤓-')
+                self.assertNotIn("fontcolor=", statement, "B4: only the scope code is coloured")
                 self.assertNotIn(' color="', statement, "scope no longer colours the border")
 
     def test_complexity_sets_the_border_colour(self):
@@ -187,7 +213,15 @@ class TestSchemaV1Dot(unittest.TestCase):
 
     def test_label_prints_the_codes_so_colour_is_never_alone(self):
         dot = to_dot(_plan({"id": "a", "title": "x", "scope": "L", "complexity": "M"}))
-        self.assertIn('label="a · ○ todo\\nx\\n↕L ↔- ⤓M"', _statement(dot, "a"))
+        self.assertEqual(_rows(_statement(dot, "a")),
+                         ["<B>a</B> · ○ todo", "x", '<FONT COLOR="#15803d">↕L</FONT> ↔- ⤓M'])
+
+    def test_code_row_without_a_scope_is_all_ink(self):
+        dot = to_dot(_plan({"id": "a", "title": "x", "complexity": "M"}))
+        self.assertEqual(_rows(_statement(dot, "a"))[-1], "↕- ↔- ⤓M")
+
+    def test_no_code_row_when_nothing_is_assessed(self):
+        self.assertEqual(len(_rows(_statement(to_dot(_plan({"id": "a", "title": "x"})), "a"))), 2)
 
     def test_groups_become_lanes(self):
         dot = to_dot(_plan({"id": "a", "title": "x", "group": "sub-1"},
@@ -256,6 +290,20 @@ class TestRenderSvg(unittest.TestCase):
         svg = render_svg(_plan({"id": "a", "title": 'say "hi" & <b>'}))
         self.assertNotIn("<b>", svg)
         ET.fromstring(svg)  # still well-formed XML
+
+    def test_hostile_titles_render_as_their_literal_text(self):
+        """B4: markup, entities and DOT escapes in a title are drawn, never interpreted."""
+        for title in ["<b>bold</b>", "a & b", "&amp;", "say \"hi\"", "back\\slash \\N \\G", "a\\\\b", "]>"]:
+            with self.subTest(title):
+                texts = _node_text(render_svg(_plan({"id": "a", "title": title})), "a")
+                self.assertIn(title, texts)
+
+    def test_only_the_scope_code_is_drawn_in_colour(self):
+        """D-18 seam: one text run carries a fill, the scope code; the rest is ink."""
+        svg = render_svg(_plan({"id": "a", "title": "x", "scope": "L", "amount": "F", "complexity": "M"}))
+        group = next(g for g in ET.fromstring(svg).iter(f"{SVG_NS}g") if g.get("id") == "node-a")
+        coloured = [(t.text, t.get("fill")) for t in group.iter(f"{SVG_NS}text") if t.get("fill")]
+        self.assertEqual(coloured, [("↕L", "#15803d")])
 
     def test_dot_failure_raises_with_stderr(self):
         failed = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="syntax error")

@@ -89,13 +89,17 @@ class Node:
         """``✓ done``: the symbol and the word."""
         return f"{STATUS_SYMBOL[self.status]} {self.status}"
 
-    def dimension_label(self) -> str:
-        """``↕L ↔- ⤓M``, or ``""`` when no dimension is assessed."""
+    def dimension_codes(self) -> tuple[str, ...]:
+        """``("↕L", "↔-", "⤓M")`` in DIMENSIONS order, or ``()`` when no dimension is assessed."""
         codes = (self.scope, self.amount, self.complexity)
         if not any(codes):
-            return ""
-        return " ".join(f"{DIMENSION_MARKER[name]}{code or UNASSESSED}"
-                        for name, code in zip(DIMENSIONS, codes))
+            return ()
+        return tuple(f"{DIMENSION_MARKER[name]}{code or UNASSESSED}"
+                     for name, code in zip(DIMENSIONS, codes))
+
+    def dimension_label(self) -> str:
+        """``↕L ↔- ⤓M``, or ``""`` when no dimension is assessed."""
+        return " ".join(self.dimension_codes())
 
 
 @dataclass(frozen=True)
