@@ -142,5 +142,29 @@ class TestOverlapReporting(unittest.TestCase):
         self.assertEqual(self._build(self.CLEAN, "--strict").returncode, 0)
 
 
+
+class TestAcknowledgedReporting(unittest.TestCase):
+    """A3-3: an acknowledged overlap stays on stderr with its reason; --strict passes it."""
+    HEADER = TestOverlapReporting.HEADER
+    _build = TestOverlapReporting._build
+    ACK = '[[overlap]]\nfile = "f.py"\nnodes = ["a", "b"]\nreason = "different hunks"\n'
+    THIRD = '[[node]]\nid = "c"\ntitle = "c"\ngroup = "i"\nfiles = ["f.py"]\n'
+
+    def test_acknowledged_overlap_is_still_listed_with_its_reason(self):
+        result = self._build(TestOverlapReporting.CLASH + self.ACK)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr.splitlines(),
+                         [TestOverlapReporting.LINE + " — acknowledged: different hunks"])
+        self.assertTrue(result.stdout.endswith(", 1 overlap (1 acknowledged)\n"), result.stdout)
+
+    def test_strict_passes_when_every_overlap_is_acknowledged(self):
+        self.assertEqual(self._build(TestOverlapReporting.CLASH + self.ACK, "--strict").returncode, 0)
+
+    def test_strict_fails_on_any_unacknowledged_overlap(self):
+        result = self._build(TestOverlapReporting.CLASH + self.THIRD + self.ACK, "--strict")
+        self.assertEqual(result.returncode, 3)
+        self.assertTrue(result.stdout.endswith(", 3 overlaps (1 acknowledged)\n"), result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

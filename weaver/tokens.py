@@ -12,6 +12,12 @@ LIGHT: dict[str, str] = {
     "border": "#cbd5e1", "accent": "#2563eb", "focus": "#2563eb",
     # The graph canvas: always light, because Graphviz paints the nodes for it.
     "canvas": "#ffffff", "ink": "#334155", "lane": "#94a3b8", "lane-text": "#475569",
+    # The card's rules (A3-7): the line under the header and the divider before the codes.
+    "rule": "#94a3b8",
+    # The overlap mark (A3-4) in one clear alert colour, whatever the node's scope.
+    "alert": "#d97706",
+    # A rework edge (A3-11): from the fixed node to the node that fixes it.
+    "rework": "#0d9488",
     # Status fills step in lightness as well as hue (todo > done > doing > blocked),
     # so they stay apart without full colour vision; the symbol carries status anyway (B3).
     "status-todo": "#ffffff", "status-done": "#d1fae5",

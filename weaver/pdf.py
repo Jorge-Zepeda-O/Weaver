@@ -10,7 +10,7 @@ import base64
 from html import escape
 from pathlib import Path
 
-from .model import Plan, dimension_key
+from .model import Plan, dimension_key, overlaps
 from .tokens import css_variables
 
 _CSS = css_variables(dark=False) + """
@@ -48,6 +48,10 @@ def _page(plan: Plan, svg: str) -> str:
     if plan.caption:
         parts.append(f"<p class='caption'>{escape(plan.caption)}</p>")
     parts.append("<p class='key'>" + "<br>".join(escape(k) for k in dimension_key()) + "</p>")
+    found = overlaps(plan)  # A3-4
+    if found:
+        parts.append("<p class='key overlaps'>Overlaps:<br>"
+                     + "<br>".join(escape(overlap.describe(plan)) for overlap in found) + "</p>")
 
     parts.append("<section class='notes'><h1>Field notes</h1>")
     for node in plan.nodes:

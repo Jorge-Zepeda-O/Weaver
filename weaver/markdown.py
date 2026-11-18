@@ -1,7 +1,7 @@
 """Markdown view of a plan (atom A4): the view GitHub renders."""
 from __future__ import annotations
 
-from .model import Node, Plan, dimension_key
+from .model import Node, Plan, dimension_key, overlaps
 
 
 def to_markdown(plan: Plan) -> str:
@@ -16,6 +16,9 @@ def to_markdown(plan: Plan) -> str:
     ]
     lines += [_row(node) for node in plan.nodes]
     lines += ["", "**Key:**", ""] + [f"- {line}" for line in dimension_key()]
+    found = overlaps(plan)  # A3-4
+    if found:
+        lines += ["", "**Overlaps:**", ""] + [f"- {overlap.describe(plan)}" for overlap in found]
 
     described = [node for node in plan.nodes if node.notes.strip() or node.decisions]
     if described:

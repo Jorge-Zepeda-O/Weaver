@@ -16,7 +16,7 @@ from typing import Any
 
 from .dot import (_FILL, AMOUNT_OUTLINES, COMPLEXITY_COLOUR, COMPLEXITY_WIDTH, RELEASE_COLOUR,
                   SCOPE_TEXT_COLOUR)
-from .model import DIMENSION_MARKER, DIMENSIONS, STATUS_SYMBOL, STATUSES, Plan
+from .model import DIMENSION_MARKER, DIMENSIONS, STATUS_SYMBOL, STATUSES, Plan, overlaps
 from .tokens import LIGHT, css_variables
 
 _SVG_XMLNS = re.compile(r'\s+xmlns(?::\w+)?="[^"]*"')
@@ -31,14 +31,18 @@ def _graph_rules() -> str:
     the PDF. Placed before the hover and focus rules, which win at equal specificity."""
     rules = (
         # Only the filled shape: stacked outlines (amount, D-16) are fill="none" and stay hollow.
-        [f'#viewport g.node.status-{s} :is(polygon, path):not([fill="none"]) '
+        [f'#viewport g.node.status-{s} :is(polygon, path):not([fill="none"], .rule) '
          f"{{ fill: var(--wv-status-{s}); }}" for s in STATUSES]
-        + [f"#viewport g.node.complexity-{c} :is(polygon, path) "
+        + [f"#viewport g.node.complexity-{c} :is(polygon, path):not(.rule) "
            f"{{ stroke: var(--wv-complexity-{c}); }}" for c in _COMPLEXITIES]
         # Scope colours the whole text (D-18); a release's text stays purple (D-15).
         + [f"#viewport g.node.scope-{c}:not(.kind-release) text "
            f"{{ fill: var(--wv-scope-text-{c}); }}" for c in _SCOPES]
         + ["#viewport g.node.kind-release text { fill: var(--wv-release); font-weight: bold; }",
+           # The card's rules (A3-7) stay one quiet colour, whatever the node's status or border.
+           "#viewport g.node polygon.rule { fill: var(--wv-rule); stroke: var(--wv-rule); }",
+           # The overlap mark (A3-4) keeps its alert colour inside any scope's text.
+           "#viewport g.node text tspan.alert { fill: var(--wv-alert); }",
            "#viewport g.cluster.lane > :is(polygon, path) { stroke: var(--wv-lane); }",
            "#viewport g.cluster.lane > text { fill: var(--wv-lane-text); }"])
     return "\n".join(rules) + "\n"
@@ -64,9 +68,9 @@ button:hover { border-color: var(--wv-accent); }
 #viewport.dragging { cursor: grabbing; }
 #viewport svg { display: block; width: 100%; height: 100%; }
 #viewport g.node { cursor: pointer; }
-#viewport g.node:hover polygon, #viewport g.node:hover path { stroke: var(--wv-accent); stroke-width: 2; }
+#viewport g.node:hover :is(polygon, path):not(.rule) { stroke: var(--wv-accent); stroke-width: 2; }
 #viewport g.node:focus { outline: none; }
-#viewport g.node:focus-visible polygon, #viewport g.node:focus-visible path { stroke: var(--wv-focus); stroke-width: 3; }
+#viewport g.node:focus-visible :is(polygon, path):not(.rule) { stroke: var(--wv-focus); stroke-width: 3; }
 dialog { width: min(36rem, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 1.25rem;
   color: var(--wv-fg); background: var(--wv-panel); border: 1px solid var(--wv-border); border-radius: 10px; }
 dialog::backdrop { background: var(--wv-backdrop); }
@@ -262,10 +266,34 @@ _SCRIPT = _GESTURES + _PANEL + """
     }
     for (const link of links) {
       const li = document.createElement("li");
-      const seam = document.createElement("span");
-      seam.className = "seam";
-      seam.textContent = " (" + link.seam + " seam)";
-      li.append(document.createTextNode(link.id + " — " + plan.nodes[link.id].title), seam);
+      li.append(document.createTextNode(link.id + " — " + plan.nodes[link.id].title));
+      if (link.seam) {
+        const seam = document.createElement("span");
+        seam.className = "seam";
+        seam.textContent = " (" + link.seam + " seam)";
+        li.append(seam);
+      }
+      list.append(li);
+    }
+  };
+  // A3-4: the files this node shares with another lane, and why, where acknowledged.
+  const fillOverlaps = (overlaps) => {
+    const list = field("overlaps");
+    list.replaceChildren();
+    if (overlaps.length === 0) {
+      const li = document.createElement("li");
+      li.textContent = "none";
+      list.append(li);
+    }
+    for (const overlap of overlaps) {
+      const li = document.createElement("li");
+      li.textContent = "⚠ " + overlap.file + ": with " + overlap.other + " — " + plan.nodes[overlap.other].title;
+      if (overlap.reason) {
+        const reason = document.createElement("span");
+        reason.className = "seam";
+        reason.textContent = " (acknowledged: " + overlap.reason + ")";
+        li.append(reason);
+      }
       list.append(li);
     }
   };
@@ -284,6 +312,9 @@ _SCRIPT = _GESTURES + _PANEL + """
     field("notes").textContent = node.notes || "—";
     fillList("deps", node.deps);
     fillList("dependents", node.dependents);
+    fillList("reworks", node.reworks);
+    fillList("reworked_by", node.reworked_by);
+    fillOverlaps(node.overlaps);
     if (!dialog.open) dialog.showModal();
   };
   const nodeIdOf = (group) => group.id.startsWith("node-") ? group.id.slice(5) : null;
@@ -326,6 +357,9 @@ _DIALOG = """<dialog id="node-dialog" aria-labelledby="dialog-title">
     <dt>Decisions</dt><dd data-field="decisions"></dd>
     <dt>Depends on</dt><dd><ul data-field="deps"></ul></dd>
     <dt>Dependents</dt><dd><ul data-field="dependents"></ul></dd>
+    <dt>Reworks</dt><dd><ul data-field="reworks"></ul></dd>
+    <dt>Reworked by</dt><dd><ul data-field="reworked_by"></ul></dd>
+    <dt>Overlaps</dt><dd><ul data-field="overlaps"></ul></dd>
   </dl>
   <p class="notes" data-field="notes"></p>
 </dialog>"""
@@ -341,6 +375,14 @@ def plan_data(plan: Plan) -> dict[str, Any]:
     dependents: dict[str, list[dict[str, str]]] = {n.id: [] for n in plan.nodes}
     for edge in plan.edges():
         dependents[edge.source].append({"id": edge.target, "seam": edge.seam})
+    reworked_by: dict[str, list[dict[str, str]]] = {n.id: [] for n in plan.nodes}
+    for n in plan.nodes:  # A3-11: the fixed node names its fixes
+        for target in n.reworks:
+            reworked_by[target].append({"id": n.id})
+    shared: dict[str, list[dict[str, str]]] = {n.id: [] for n in plan.nodes}
+    for overlap in overlaps(plan):  # A3-4: each side lists the other
+        for here, other in ((overlap.a, overlap.b), (overlap.b, overlap.a)):
+            shared[here].append({"file": overlap.file, "other": other, "reason": overlap.reason})
     return {"terms": DIMENSIONS, "markers": DIMENSION_MARKER, "glyphs": GLYPHS, "nodes": {
         n.id: {"id": n.id, "title": n.title, "kind": n.kind, "status": n.status,
                "status_label": n.status_label(),
@@ -348,15 +390,16 @@ def plan_data(plan: Plan) -> dict[str, Any]:
                "complexity": n.complexity, "verify": n.verify, "decisions": list(n.decisions),
                "unguarded": n.unguarded,
                "deps": [{"id": d.id, "seam": d.seam} for d in n.deps],
-               "dependents": dependents[n.id]}
+               "dependents": dependents[n.id], "overlaps": shared[n.id],
+               "reworks": [{"id": r} for r in n.reworks], "reworked_by": reworked_by[n.id]}
         for n in plan.nodes
     }}
 
 
 def _swatch(shape: str = "box", fill: str = LIGHT["canvas"], stroke: str = LIGHT["ink"],
-            width: str = "1", dashed: bool = False) -> str:
+            width: str = "1", dashed: bool = False, dotted: bool = False) -> str:
     """A small inline SVG key. Presentation attributes only: the CSP refuses style=""."""
-    dash = ' stroke-dasharray="3 2"' if dashed else ""
+    dash = ' stroke-dasharray="3 2"' if dashed else ' stroke-dasharray="1 2"' if dotted else ""
     paint = f'fill="{fill}" stroke="{stroke}" stroke-width="{width}"{dash}'
     body = {
         "box": f'<rect x="2" y="2" width="18" height="12" rx="3" {paint}/>',
@@ -394,7 +437,9 @@ def _legend() -> str:
                                 (_swatch("hexagon", dashed=True), "unguarded merge (no verify)"),
                                 (_swatch("octagon", stroke=RELEASE_COLOUR), "release")])),
         ("Seam (edge)", items([(_swatch("line"), "build seam"),
-                               (_swatch("line", dashed=True), "runtime seam")])),
+                               (_swatch("line", dashed=True), "runtime seam"),
+                               (_swatch("line", stroke=LIGHT["rework"], dotted=True),
+                                "rework (from the fixed node to its fix)")])),
         ("Scope (text colour)", items([(_text_swatch(SCOPE_TEXT_COLOUR[c]), f"{GLYPHS['scope'][c]} {c} {n}")
                                        for c, n in DIMENSIONS["scope"].items()])),
         ("Complexity (border colour, weight)",
@@ -402,6 +447,8 @@ def _legend() -> str:
                 for c, n in DIMENSIONS["complexity"].items()])),
         ("Amount (outlines)", items([(_outlines_swatch(int(AMOUNT_OUTLINES[c])), f"{GLYPHS['amount'][c]} {c} {n}")
                                      for c, n in DIMENSIONS["amount"].items()])),
+        ("Overlap (⚠)", escape("this node and one in another lane touch the same file, with nothing "
+                               "ordering them; the panel names the file and any acknowledged reason")),
         ("In each node", escape("↕scope (reach) ↔amount (breadth) ⤓complexity (depth); - unassessed, "
                                 "? assessed but unknowable (ranks worst)")),
     ]
