@@ -1,7 +1,7 @@
 # The plan that built weaver, and its first test input.
 #
-# Schema 2 (every field is described in the README)
-#   [plan]        schema = 2 (required), title (required), goal, caption
+# Schema 3 (every field is described in the README)
+#   [plan]        schema = 3 (required), title (required), goal, caption
 #   [[node]]      id (required, [A-Za-z0-9_.-]+), title (required)
 #                 kind = atom | merge | release            (default atom; release needs schema 2)
 #                 status = todo | doing | done | blocked   (default todo)
@@ -13,10 +13,13 @@
 #                 complexity = T E M H N ?     depth
 #                 verify                       the check that proves the node done
 #                 decisions = ["D-1", ...]     the decisions behind the node
+#                 files = [...]                paths the node touches (schema 3)
+#                 reworks = [...]              earlier nodes this one fixes (schema 3)
 #                 notes                        free text
+#   [[overlap]]   file, nodes, reason (all required, schema 3): two lanes may share a file
 
 [plan]
-schema = 2
+schema = 3
 title = "weaver — the plan that built it"
 goal = "python -m weaver build turns this file into a clickable HTML graph, a Markdown table and a PDF, with every view tested."
 caption = "One plan file, three views. A0 is the shared contract and lands first; the A2→A3 strand runs in parallel with the main strand; M1 is the only merge, and the end-to-end test guards it. V1 is the release the merge became."
@@ -30,6 +33,7 @@ scope = "P"
 amount = "F"
 complexity = "M"
 verify = "tests/test_load.py"
+files = ["weaver/model.py"]
 notes = """
 The contract every other atom builds against: Plan, Node, Dep, Edge in weaver/model.py, plus this file as the schema example.
 Lands first, so the parallel strands share no other file.
@@ -45,6 +49,7 @@ scope = "L"
 amount = "N"
 complexity = "M"
 verify = "tests/test_load.py"
+files = ["weaver/load.py"]
 notes = """
 load_plan / parse_plan. Reports every error in one run: unknown keys, bad ids, kinds, statuses and codes, unknown or duplicate deps, self-deps, cycles (with the path), a missing or unknown schema version.
 """
@@ -59,6 +64,7 @@ scope = "L"
 amount = "F"
 complexity = "M"
 verify = "tests/test_dot.py"
+files = ["weaver/dot.py"]
 notes = """
 Shape by kind (atom vs merge), line style by seam (build solid, runtime dashed), fill by status, lanes by group, border colour by scope and border weight by complexity.
 Contract with A3 and A5: every SVG node group carries id="node-<id>".
@@ -74,6 +80,7 @@ scope = "L"
 amount = "F"
 complexity = "H"
 verify = "tests/test_html.py, tests/test_gestures.py"
+files = ["weaver/html.py"]
 notes = """
 One self-contained file, no CDN. Node data travels as escaped JSON; the modal fills via textContent only, never innerHTML. A Content-Security-Policy admits the one script and the one style block by hash.
 Gesture handling is a DOM-free core, tested under Node.
@@ -89,6 +96,7 @@ scope = "I"
 amount = "1"
 complexity = "E"
 verify = "tests/test_views_md_pdf.py"
+files = ["weaver/markdown.py"]
 notes = "The view GitHub can render. Pipes and newlines in cells are escaped."
 
 [[node]]
@@ -102,6 +110,7 @@ scope = "I"
 amount = "1"
 complexity = "E"
 verify = "tests/test_views_md_pdf.py"
+files = ["weaver/pdf.py"]
 notes = """
 WeasyPrint, no JavaScript: the static stand-in for the modals.
 Runtime seam on A2 because it consumes the SVG A2 produces, not A2's code.
@@ -118,6 +127,7 @@ scope = "P"
 amount = "F"
 complexity = "E"
 verify = "tests/test_cli.py"
+files = ["weaver/__main__.py"]
 notes = """
 python -m weaver build PLAN.toml -o out/ → PLAN.html, PLAN.md, PLAN.pdf, plan.svg.
 The end-to-end test is the oracle for the merge.
@@ -138,3 +148,23 @@ notes = """
 A release is a merge that marks where a version was cut (schema 2), drawn as an octagon with bold purple text.
 Shortened for the example: a port into the repository and a schema pass sat between M1 and the tag.
 """
+
+[[node]]
+id = "A6"
+title = "Overlaps in every view"
+group = "graph"
+deps = ["A3"]
+scope = "L"
+amount = "F"
+complexity = "M"
+verify = "tests/test_overlap_views.py"
+files = ["weaver/html.py", "weaver/markdown.py"]
+notes = """
+Still open, so the example shows an overlap: A6 and A4 both touch weaver/markdown.py from different lanes, and nothing orders them.
+The [[overlap]] entry below says why that is fine; without it, check --strict would fail.
+"""
+
+[[overlap]]
+file = "weaver/markdown.py"
+nodes = ["A4", "A6"]
+reason = "A6 only appends a list after the key that A4 writes"

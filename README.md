@@ -1,6 +1,6 @@
 # Weaver
 
-**Version 0.2 — under active development.**
+**Version 0.3 — under active development.**
 
 Weaver turns a plan, written as a small TOML file, into views you can read and share:
 
@@ -17,9 +17,11 @@ The plan format is the core of the project, and Weaver displays it. The example 
 
 ## What it looks like
 
-![The example plan rendered by Weaver: seven nodes in two lanes converge on one merge, which leads to a release](docs/example/plan.svg)
+![The example plan rendered by Weaver: nodes in two lanes converge on one merge, which leads to a release; two nodes in different lanes carry an amber overlap mark](docs/example/plan.svg)
 
-Each node is a card: its id and status (`✓ done`), its title, and its codes. The fill shows the status, the border's colour and weight show complexity, the number of outlines shows amount, and the text colour shows scope.
+Each node is a card: its id and status (`✓ done`), its title, and its codes. The fill shows the status, the border's colour and weight show complexity, the number of outlines shows amount, and the text colour shows scope. An amber `⚠` marks a node that shares a file with a node in another lane, with nothing ordering the two (see `files` below).
+
+The page links to a node by its id: `PLAN.html#A3` opens the graph centred on `A3`, and the find box does the same.
 
 The same plan as [Markdown](docs/example/PLAN.md) and as a [PDF](docs/example/PLAN.pdf). The interactive [`PLAN.html`](docs/example/PLAN.html) has to be downloaded and opened in a browser, because GitHub shows HTML files as source.
 
@@ -29,7 +31,9 @@ The same plan as [Markdown](docs/example/PLAN.md) and as a [PDF](docs/example/PL
 python -m weaver build examples/weaver_plan.toml -o out/
 ```
 
-Exit codes: `0` built · `1` the plan is invalid (every problem is listed, not just the first) · `2` wrong invocation or unreadable file.
+Exit codes: `0` built · `1` the plan is invalid (every problem is listed, not just the first) · `2` wrong invocation or unreadable file · `3` with `--strict`, an overlap no `[[overlap]]` entry acknowledges (the views are still built).
+
+Every overlap is printed as a warning, acknowledged or not.
 
 **Requirements**
 
@@ -41,11 +45,11 @@ Tested with Python 3.12, Graphviz 2.43 and WeasyPrint 69.
 
 ## The plan format
 
-An excerpt showing every field (nodes `A0` and `A1` are defined elsewhere in the same file):
+An excerpt showing every field (nodes `A0`, `A1` and `A3` are defined elsewhere in the same file):
 
 ```toml
 [plan]
-schema = 2
+schema = 3
 title = "Ship the importer"
 goal = "Customers can import a CSV and see their data."
 caption = "Two parallel strands meet at M1."
@@ -63,16 +67,23 @@ amount = "F"
 complexity = "M"
 verify = "tests/test_dates.py"
 decisions = ["D-3", "billing:D-12"]
+files = ["importer/dates.py", "importer/schema.py"]
+reworks = ["A1"]
 notes = """
 Free text, shown in the details panel and the field notes.
 """
+
+[[overlap]]
+file = "importer/schema.py"
+nodes = ["A2", "A3"]
+reason = "A3 only reads the column names"
 ```
 
 ### `[plan]`
 
 | Field | | Meaning |
 |---|---|---|
-| `schema` | required | The format version: `1` or `2` (`2` adds the `release` kind). A plan without it, or with a version this Weaver does not know, is refused, never guessed at. |
+| `schema` | required | The format version: `1`, `2` (adds the `release` kind) or `3` (adds `files`, `reworks` and `[[overlap]]`). A plan without it, or with a version this Weaver does not know, is refused, never guessed at. |
 | `title` | required | Non-empty. |
 | `goal` | optional | What counts as done for the whole plan. |
 | `caption` | optional | Shown under the graph: the words that make the diagram readable. |
@@ -95,7 +106,13 @@ Unknown keys are errors, so a typo fails loudly instead of being ignored.
 | `complexity` | optional | Depth: `T` trivial · `E` easy · `M` moderate · `H` hard · `N` novel. Drawn as the border's colour and weight, calm grey to heavy red. |
 | `verify` | optional | The test or check that proves the node done. A merge or release without one is drawn with a dashed border and marked *unguarded*. |
 | `decisions` | optional | The decisions behind the node, as handles: `D-3`, or `project:D-3` for another project's. Displayed, not looked up. |
+| `files` | optional | Schema 3. Paths the node touches. Two nodes in different groups that touch the same file, with no dependency ordering them, are an **overlap**: a likely merge conflict. Both get a `⚠`, the details panel names the file and the other node, and the Markdown and PDF list it after the key. A pair that is entirely `done` is history and is not reported. |
+| `reworks` | optional | Schema 3. Ids of earlier nodes this one fixes. Nodes are only ever added: a fix is a new node that points back, never an edit to a finished one. Drawn as a dotted teal edge from the fixed node to its fix, outside the layout; the panel shows *Reworks* and *Reworked by*. A node may not rework itself, or a node that depends on it. |
 | `notes` | optional | Free text. Always shown as text, never interpreted as HTML. |
+
+### `[[overlap]]` (optional, schema 3)
+
+Acknowledges an overlap that is safe, and says why. `file`, `nodes` (at least two, each listing the file) and `reason` are all required. An acknowledged overlap still shows its `⚠` and its reason; it only stops `--strict` from failing. An entry whose overlap has since gone away stays valid.
 
 **The three dimensions** (`scope`, `amount`, `complexity`) are ordinal scales, from low to high. Each also accepts `?`, meaning *assessed, but unknowable*, which ranks as the worst value. An absent dimension means *not assessed yet*, which is different. The dimensions are shown side by side and never combined into one number, since a product would hide which one dominates. Every node prints its codes behind a marker for each dimension's direction, ↕ scope (reach), ↔ amount (breadth), ⤓ complexity (depth): for example `↕L ↔- ⤓M`, so colour never carries meaning alone.
 

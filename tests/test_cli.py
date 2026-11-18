@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 EXAMPLE = ROOT / "examples" / "weaver_plan.toml"
-NODE_IDS = ["A0", "A1", "A2", "A3", "A4", "A5", "M1", "V1"]
+NODE_IDS = ["A0", "A1", "A2", "A3", "A4", "A5", "M1", "V1", "A6"]
 
 
 def _run(*args: str) -> subprocess.CompletedProcess:
@@ -29,7 +29,7 @@ class TestBuild(unittest.TestCase):
     def test_exits_zero_and_reports_what_it_built(self):
         self.assertEqual(self.result.returncode, 0, self.result.stderr)
         # A1:1 + A2:1 + A3:2 + A4:1 + A5:2 (one runtime) + M1:4 + V1:1 = 12
-        self.assertIn("8 nodes, 12 edges", self.result.stdout)
+        self.assertIn("9 nodes, 13 edges", self.result.stdout)
 
     def test_svg_has_every_node(self):
         svg = (self.out / "plan.svg").read_text(encoding="utf-8")

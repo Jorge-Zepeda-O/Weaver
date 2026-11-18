@@ -14,6 +14,7 @@ One plan file, three views. A0 is the shared contract and lands first; the A2→
 | A5 | atom | PDF view: graph + caption + field notes | main | ✓ done | ↕I ↔1 ⤓E | tests/test_views_md_pdf.py | A0, A2 (runtime) |
 | M1 | merge | CLI build + end-to-end test | main | ✓ done | ↕P ↔F ⤓E | tests/test_cli.py | A1, A3, A4, A5 |
 | V1 | release | v0.1.0: tagged and published | main | ✓ done | ↕P ↔1 ⤓E | the v0.1.0 tag and its release page | M1 |
+| A6 | atom | Overlaps in every view | graph | ○ todo | ↕L ↔F ⤓M | tests/test_overlap_views.py | A3 |
 
 **Key:**
 
@@ -21,6 +22,10 @@ One plan file, three views. A0 is the shared contract and lands first; the A2→
 - ↔ amount: 1 one, F few, N numerous, B bulk, S stream, ? unknowable
 - ⤓ complexity: T trivial, E easy, M moderate, H hard, N novel, ? unknowable
 - - unassessed; ? assessed but unknowable, ranks worst
+
+**Overlaps:**
+
+- weaver/markdown.py — A4 (main) × A6 (graph) — acknowledged: A6 only appends a list after the key that A4 writes
 
 ## Field notes
 
@@ -101,3 +106,13 @@ The end-to-end test is the oracle for the merge.
 
 A release is a merge that marks where a version was cut (schema 2), drawn as an octagon with bold purple text.
 Shortened for the example: a port into the repository and a schema pass sat between M1 and the tag.
+
+### A6: Overlaps in every view
+
+- **Status**: ○ todo
+- **Group**: graph
+- **Dimensions**: ↕L ↔F ⤓M
+- **Verify**: tests/test_overlap_views.py
+
+Still open, so the example shows an overlap: A6 and A4 both touch weaver/markdown.py from different lanes, and nothing orders them.
+The [[overlap]] entry below says why that is fine; without it, check --strict would fail.

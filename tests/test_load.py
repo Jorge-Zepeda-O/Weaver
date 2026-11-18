@@ -22,7 +22,7 @@ def _errors(data: dict) -> list[str]:
 class TestValidPlans(unittest.TestCase):
     def test_example_plan_loads(self):
         plan = load_plan(EXAMPLE)
-        self.assertEqual([n.id for n in plan.nodes], ["A0", "A1", "A2", "A3", "A4", "A5", "M1", "V1"])
+        self.assertEqual([n.id for n in plan.nodes], ["A0", "A1", "A2", "A3", "A4", "A5", "M1", "V1", "A6"])
 
     def test_defaults_apply(self):
         node = parse_plan(_plan({"id": "a", "title": "x"})).node("a")
@@ -182,10 +182,13 @@ class TestSchemaV1(unittest.TestCase):
                 node = parse_plan(_plan({**self.ok, **extra})).node("a")
                 self.assertEqual(node.dimension_label(), expected)
 
-    def test_example_plan_uses_schema_v2(self):
-        """R2: the example shows the release kind, so it declares schema 2."""
+    def test_example_plan_uses_schema_v3(self):
+        """R2: the example shows the release kind (schema 2); A3-10: files and an
+        acknowledged overlap (schema 3), so it declares schema 3."""
         plan = load_plan(EXAMPLE)
-        self.assertEqual(plan.schema, 2)
+        self.assertEqual(plan.schema, 3)
+        self.assertEqual([(a.file, a.nodes) for a in plan.acknowledgements],
+                         [("weaver/markdown.py", ("A4", "A6"))])
         self.assertEqual([n.id for n in plan.nodes if n.kind == "release"], ["V1"])
         self.assertTrue(plan.goal)
         for node in plan.nodes:
