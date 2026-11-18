@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from .model import (DECISION_PATTERN, DIMENSIONS, FIELD_SINCE, KIND_SINCE, KINDS,
-                    NODE_ID_PATTERN, SCHEMA_VERSION, SCHEMA_VERSIONS, STATUSES, Dep, Node, Plan)
+                    NODE_ID_PATTERN, SCHEMA_VERSION, SCHEMA_VERSIONS, STATUSES, Acknowledgement,
+                    Dep, Node, Plan)
 
 _NODE_ID = re.compile(rf"^{NODE_ID_PATTERN}$")
 _DECISION = re.compile(rf"^{DECISION_PATTERN}$")
@@ -21,6 +22,7 @@ _NODE_KEYS = {"id", "title", "kind", "status", "group", "notes", "deps", "runtim
 # Keys an older plan may still carry, with what replaced them.
 _RENAMED = {"owner": "group"}
 _DEP_KEYS: dict[str, str] = {"deps": "build", "runtime_deps": "runtime"}
+_OVERLAP_KEYS = {"file", "nodes", "reason"}
 
 
 class PlanError(ValueError):
@@ -52,7 +54,8 @@ def parse_plan(data: dict[str, Any]) -> Plan:
         title = _string(header, "title", "[plan]", errors, required=True)
         goal = _string(header, "goal", "[plan]", errors)
         caption = _string(header, "caption", "[plan]", errors)
-    errors += [f"unknown top-level key '{k}'" for k in sorted(set(data) - {"plan", "node"})]
+    errors += [f"unknown top-level key '{k}'"
+               for k in sorted(set(data) - {"plan", "node", "overlap"})]
 
     if not isinstance(raw_nodes, list) or not raw_nodes:
         errors.append("no [[node]] entries")
@@ -61,12 +64,14 @@ def parse_plan(data: dict[str, Any]) -> Plan:
     nodes = [n for n in (_parse_node(i, raw, schema, errors) for i, raw in enumerate(raw_nodes))
              if n]
     _check_ids_and_refs(nodes, errors)
+    acknowledgements = _acknowledgements(data.get("overlap"), schema, nodes, errors)
     if not errors:
         _check_acyclic(nodes, errors)
 
     if errors:
         raise PlanError(errors)
-    return Plan(title=title, goal=goal, caption=caption, nodes=tuple(nodes), schema=schema)
+    return Plan(title=title, goal=goal, caption=caption, nodes=tuple(nodes), schema=schema,
+                acknowledgements=acknowledgements)
 
 
 def _parse_node(index: int, raw: Any, schema: int, errors: list[str]) -> Node | None:
@@ -182,13 +187,59 @@ def _decisions(raw: dict[str, Any], where: str, errors: list[str]) -> tuple[str,
 def _files(raw: dict[str, Any], where: str, errors: list[str]) -> tuple[str, ...]:
     """Paths a node touches, normalised (no leading ``./`` or trailing ``/``) and deduplicated."""
     value = raw.get("files", [])
-    paths = ([f.removeprefix("./").removesuffix("/") for f in value]
+    paths = ([_normalised(f) for f in value]
              if isinstance(value, list) and all(isinstance(f, str) for f in value) else None)
     # Checked after normalising, so "./" or "/" cannot slip through as an empty path.
     if paths is None or not all(p.strip() for p in paths):
         errors.append(f"{where}: 'files' must be a list of non-empty strings")
         return ()
     return tuple(dict.fromkeys(paths))
+
+
+def _normalised(path: str) -> str:
+    """A path as the overlap check compares it: no leading ``./``, no trailing ``/``."""
+    return path.removeprefix("./").removesuffix("/")
+
+
+def _acknowledgements(raw: Any, schema: int, nodes: list[Node],
+                      errors: list[str]) -> tuple[Acknowledgement, ...]:
+    """A3-3: the plan's [[overlap]] entries. Each names a file and the nodes that may share
+    it, and must say why. A named node must list the file, so a typo cannot acknowledge
+    nothing in silence. An entry whose overlap has since gone away stays valid: plans grow."""
+    if raw is None:
+        return ()
+    if FIELD_SINCE["overlap"] > schema:
+        errors.append(f"[[overlap]] needs schema = {FIELD_SINCE['overlap']}")
+        return ()
+    if not isinstance(raw, list) or not all(isinstance(entry, dict) for entry in raw):
+        errors.append("'overlap' must be a list of [[overlap]] tables")
+        return ()
+    files_of = {node.id: node.files for node in nodes}
+    found = []
+    for index, entry in enumerate(raw):
+        where = f"overlap #{index + 1}"
+        errors_before = len(errors)
+        errors += [f"{where}: unknown key '{k}'" for k in sorted(set(entry) - _OVERLAP_KEYS)]
+        file = entry.get("file")
+        file = _normalised(file) if isinstance(file, str) else ""
+        if not file.strip():
+            errors.append(f"{where}: 'file' must be a non-empty string")
+        ids = entry.get("nodes")
+        ids = (tuple(dict.fromkeys(ids))
+               if isinstance(ids, list) and all(isinstance(i, str) for i in ids) else ())
+        if len(ids) < 2:
+            errors.append(f"{where}: 'nodes' must list at least two different node ids")
+        reason = entry.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            errors.append(f"{where}: 'reason' is required: say why the overlap is safe")
+        for node_id in ids:
+            if node_id not in files_of:
+                errors.append(f"{where}: unknown node '{node_id}'")
+            elif file.strip() and file not in files_of[node_id]:
+                errors.append(f"{where}: node '{node_id}' does not list '{file}' in its files")
+        if len(errors) == errors_before:
+            found.append(Acknowledgement(file=file, nodes=ids, reason=reason))
+    return tuple(found)
 
 
 def _check_ids_and_refs(nodes: list[Node], errors: list[str]) -> None:

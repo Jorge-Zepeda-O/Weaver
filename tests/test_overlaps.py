@@ -52,5 +52,46 @@ class TestOverlaps(unittest.TestCase):
         self.assertEqual(result, (Overlap("a.py", "z", "y"), Overlap("b.py", "z", "y")))
 
 
+
+class TestAcknowledged(unittest.TestCase):
+    """A3-3: an acknowledged overlap is still reported, carrying its reason; it never hides."""
+
+    def _plan(self, *acks: dict, nodes=None):
+        nodes = nodes or [_node("a", "g"), _node("b", "h"), _node("c", "i")]
+        return parse_plan({"plan": {"schema": 3, "title": "T"}, "node": nodes, "overlap": list(acks)})
+
+    def test_acknowledged_overlap_is_still_reported_with_its_reason(self):
+        plan = self._plan({"file": "f.py", "nodes": ["a", "b"], "reason": "different hunks"},
+                          nodes=[_node("a", "g"), _node("b", "h")])
+        self.assertEqual(overlaps(plan), (Overlap("f.py", "a", "b", "different hunks"),))
+        self.assertTrue(overlaps(plan)[0].acknowledged)
+
+    def test_unacknowledged_overlap_has_no_reason(self):
+        (overlap,) = overlaps(self._plan(nodes=[_node("a", "g"), _node("b", "h")]))
+        self.assertEqual(overlap.reason, "")
+        self.assertFalse(overlap.acknowledged)
+
+    def test_an_entry_covers_every_pair_it_names(self):
+        plan = self._plan({"file": "f.py", "nodes": ["a", "b", "c"], "reason": "r"})
+        self.assertEqual([o.reason for o in overlaps(plan)], ["r", "r", "r"])
+
+    def test_a_pair_the_entry_does_not_name_stays_unacknowledged(self):
+        plan = self._plan({"file": "f.py", "nodes": ["a", "b"], "reason": "r"})
+        self.assertEqual([(o.a, o.b, o.reason) for o in overlaps(plan)],
+                         [("a", "b", "r"), ("a", "c", ""), ("b", "c", "")])
+
+    def test_an_entry_acknowledges_only_its_own_file(self):
+        nodes = [_node("a", "g", files=["f.py", "x.py"]), _node("b", "h", files=["f.py", "x.py"])]
+        plan = self._plan({"file": "x.py", "nodes": ["a", "b"], "reason": "r"}, nodes=nodes)
+        self.assertEqual([(o.file, o.reason) for o in overlaps(plan)], [("f.py", ""), ("x.py", "r")])
+
+    def test_a_stale_entry_is_silent(self):
+        """The overlap went away (here: the pair is now sequenced). Plans only grow, so an old
+        acknowledgement stays valid and reports nothing."""
+        nodes = [_node("a", "g"), _node("b", "h", deps=["a"])]
+        plan = self._plan({"file": "f.py", "nodes": ["a", "b"], "reason": "r"}, nodes=nodes)
+        self.assertEqual(overlaps(plan), ())
+
+
 if __name__ == "__main__":
     unittest.main()
