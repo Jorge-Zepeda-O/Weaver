@@ -97,7 +97,7 @@ class TestTokens(unittest.TestCase):
              f"{{ fill: var(--wv-status-{s}); }}" for s in ("todo", "doing", "done", "blocked")]
             + [f"#viewport g.node.complexity-{c} :is(polygon, path) "
                f"{{ stroke: var(--wv-complexity-{c}); }}" for c in ("T", "E", "M", "H", "N", "unknown")]
-            + [f"#viewport g.node.scope-{c}:not(.kind-release) text[fill] "
+            + [f"#viewport g.node.scope-{c}:not(.kind-release) text "
                f"{{ fill: var(--wv-scope-text-{c}); }}" for c in ("I", "L", "P", "U", "G", "unknown")]
             + ["#viewport g.node.kind-release text { fill: var(--wv-release); font-weight: bold; }",
                "#viewport g.cluster.lane > :is(polygon, path) { stroke: var(--wv-lane); }",
@@ -106,14 +106,14 @@ class TestTokens(unittest.TestCase):
             with self.subTest(rule):
                 self.assertIn(rule, _STYLE)
 
-    def test_scope_rules_leave_releases_and_ink_alone(self):
-        """B4: only the code's run has a fill (D-18 seam), and a release keeps its purple (D-15)."""
+    def test_scope_rules_leave_releases_alone(self):
+        """A release keeps its purple (D-15), whatever its scope."""
         from weaver.html import _STYLE
         scope_rules = [ln for ln in _STYLE.splitlines() if "g.node.scope-" in ln]
         self.assertEqual(len(scope_rules), 6)
         for rule in scope_rules:
             with self.subTest(rule):
-                self.assertIn(":not(.kind-release) text[fill] ", rule)
+                self.assertIn(":not(.kind-release) text ", rule)
 
     def test_hover_and_focus_come_after_the_graph_rules(self):
         from weaver.html import _STYLE

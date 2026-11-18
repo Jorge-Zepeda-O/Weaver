@@ -31,10 +31,21 @@ def _rows(statement: str) -> list[str]:
     return re.findall(r"<TR><TD>(.*?)</TD></TR>", _label(statement))
 
 
+def _node_group(svg: str, node_id: str) -> ET.Element:
+    return next(g for g in ET.fromstring(svg).iter(f"{SVG_NS}g") if g.get("id") == f"node-{node_id}")
+
+
 def _node_text(svg: str, node_id: str) -> list[str]:
-    """The text runs drawn inside one node, in document order."""
-    group = next(g for g in ET.fromstring(svg).iter(f"{SVG_NS}g") if g.get("id") == f"node-{node_id}")
-    return [t.text or "" for t in group.iter(f"{SVG_NS}text")]
+    """The lines drawn inside one node, in document order, with their runs joined."""
+    return ["".join(t.itertext()) for t in _node_group(svg, node_id).iter(f"{SVG_NS}text")]
+
+
+def _shape_centre_x(group: ET.Element) -> float:
+    """The middle of the node's first shape, from its points or path coordinates."""
+    shape = next(e for e in group if e.tag in (f"{SVG_NS}polygon", f"{SVG_NS}path"))
+    numbers = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", shape.get("points") or shape.get("d"))]
+    xs = numbers[0::2]
+    return (min(xs) + max(xs)) / 2
 
 
 def _classes(element: ET.Element) -> set[str]:
@@ -167,9 +178,8 @@ class TestSchemaV1Dot(unittest.TestCase):
         for code, colour in cases:
             with self.subTest(code):
                 statement = _statement(to_dot(_plan({"id": "a", "title": "x", "scope": code})), "a")
-                self.assertEqual(_rows(statement)[-1],
-                                 f'<FONT COLOR="{colour}">↕{code}</FONT> ↔- ⤓-')
-                self.assertNotIn("fontcolor=", statement, "B4: only the scope code is coloured")
+                self.assertIn(f'fontcolor="{colour}"', statement, "scope colours the whole text")
+                self.assertEqual(_rows(statement)[-1], f"↕{code} ↔- ⤓-")
                 self.assertNotIn(' color="', statement, "scope no longer colours the border")
 
     def test_complexity_sets_the_border_colour(self):
@@ -214,7 +224,7 @@ class TestSchemaV1Dot(unittest.TestCase):
     def test_label_prints_the_codes_so_colour_is_never_alone(self):
         dot = to_dot(_plan({"id": "a", "title": "x", "scope": "L", "complexity": "M"}))
         self.assertEqual(_rows(_statement(dot, "a")),
-                         ["<B>a</B> · ○ todo", "x", '<FONT COLOR="#15803d">↕L</FONT> ↔- ⤓M'])
+                         ["<B>a</B> · ○ todo", "x", "↕L ↔- ⤓M"])
 
     def test_code_row_without_a_scope_is_all_ink(self):
         dot = to_dot(_plan({"id": "a", "title": "x", "complexity": "M"}))
@@ -298,12 +308,34 @@ class TestRenderSvg(unittest.TestCase):
                 texts = _node_text(render_svg(_plan({"id": "a", "title": title})), "a")
                 self.assertIn(title, texts)
 
-    def test_only_the_scope_code_is_drawn_in_colour(self):
-        """D-18 seam: one text run carries a fill, the scope code; the rest is ink."""
+    def test_scope_colours_every_line(self):
+        """D-18: the whole text takes the scope colour."""
         svg = render_svg(_plan({"id": "a", "title": "x", "scope": "L", "amount": "F", "complexity": "M"}))
-        group = next(g for g in ET.fromstring(svg).iter(f"{SVG_NS}g") if g.get("id") == "node-a")
-        coloured = [(t.text, t.get("fill")) for t in group.iter(f"{SVG_NS}text") if t.get("fill")]
-        self.assertEqual(coloured, [("↕L", "#15803d")])
+        fills = [t.get("fill") for t in _node_group(svg, "a").iter(f"{SVG_NS}text")]
+        self.assertEqual(fills, ["#15803d"] * 3)
+
+    def test_every_line_is_centred_on_its_node(self):
+        """A3-6: one middle-anchored <text> per line at the shape's centre, so no device's
+        font can shift it; Graphviz anchors each run at its start with its own font widths."""
+        plan = parse_plan({"plan": {"schema": 2, "title": "T"}, "node": [
+            {"id": "a", "title": "A title long enough to wrap onto two lines", "scope": "L",
+             "complexity": "M"},
+            {"id": "m", "title": "y", "kind": "merge", "verify": "v", "deps": ["a"]},
+            {"id": "r", "title": "z", "kind": "release", "verify": "v", "deps": ["m"]}]})
+        svg = render_svg(plan)
+        for node_id in ("a", "m", "r"):
+            group = _node_group(svg, node_id)
+            centre = _shape_centre_x(group)
+            for line in group.iter(f"{SVG_NS}text"):
+                with self.subTest(node=node_id, line="".join(line.itertext())):
+                    self.assertEqual(line.get("text-anchor"), "middle")
+                    self.assertAlmostEqual(float(line.get("x")), centre, places=1)
+
+    def test_header_keeps_the_bold_id_inside_its_line(self):
+        svg = render_svg(_plan({"id": "a", "title": "x"}))
+        header = next(_node_group(svg, "a").iter(f"{SVG_NS}text"))
+        spans = [(s.text, s.get("font-weight")) for s in header.iter(f"{SVG_NS}tspan")]
+        self.assertEqual(spans, [("a", "bold"), (" · ○ todo", None)])
 
     def test_dot_failure_raises_with_stderr(self):
         failed = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="syntax error")

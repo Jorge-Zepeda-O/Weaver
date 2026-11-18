@@ -19,7 +19,7 @@ The plan format is the core of the project, and Weaver displays it. The example 
 
 ![The example plan rendered by Weaver: seven nodes in two lanes converge on one merge, which leads to a release](docs/example/plan.svg)
 
-Each node is a card: its id and status (`✓ done`), its title, and its codes. The fill shows the status, the border's colour and weight show complexity, the number of outlines shows amount, and the colour of the `↕` code shows scope.
+Each node is a card: its id and status (`✓ done`), its title, and its codes. The fill shows the status, the border's colour and weight show complexity, the number of outlines shows amount, and the text colour shows scope.
 
 The same plan as [Markdown](docs/example/PLAN.md) and as a [PDF](docs/example/PLAN.pdf). The interactive [`PLAN.html`](docs/example/PLAN.html) has to be downloaded and opened in a browser, because GitHub shows HTML files as source.
 
@@ -90,7 +90,7 @@ Unknown keys are errors, so a typo fails loudly instead of being ignored.
 | `group` | optional | The parallel strand the node runs in. Drawn as a lane. |
 | `deps` | optional | Build seams: ids of nodes this one statically depends on. |
 | `runtime_deps` | optional | Runtime seams: ids of nodes whose output this one consumes. Drawn dashed. A dependency belongs in exactly one of the two lists, and the graph must be acyclic (a cycle is reported with its path). |
-| `scope` | optional | Reach: `I` independent · `L` local · `P` project · `U` umbrella · `G` global. Drawn as the colour of the node's `↕` code, cool to hot. |
+| `scope` | optional | Reach: `I` independent · `L` local · `P` project · `U` umbrella · `G` global. Drawn as the text colour, cool to hot. |
 | `amount` | optional | Breadth: `1` one · `F` few · `N` numerous · `B` bulk · `S` stream. Drawn as the number of outlines, one to five. |
 | `complexity` | optional | Depth: `T` trivial · `E` easy · `M` moderate · `H` hard · `N` novel. Drawn as the border's colour and weight, calm grey to heavy red. |
 | `verify` | optional | The test or check that proves the node done. A merge or release without one is drawn with a dashed border and marked *unguarded*. |

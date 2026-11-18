@@ -77,16 +77,12 @@ def _html(text: str) -> str:
 
 
 def _card(node: Node) -> str:
-    """B4: the node's label as a table: bold id and status, the wrapped title, the codes.
-    Only the scope code is coloured (D-18); a release's text is all purple (D-15)."""
+    """B4: the node's label as a table: bold id and status, the wrapped title, the codes."""
     title = textwrap.wrap(node.title, TITLE_WIDTH, break_long_words=False, break_on_hyphens=False)
     rows = [f"<B>{_html(node.id)}</B> · {_html(node.status_label())}",
             "<BR/>".join(_html(line) for line in title)]
-    codes = [_html(code) for code in node.dimension_codes()]
-    if codes:
-        if node.scope and node.kind != "release":
-            codes[0] = f'<FONT COLOR="{SCOPE_TEXT_COLOUR[node.scope]}">{codes[0]}</FONT>'
-        rows.append(" ".join(codes))
+    if node.dimension_codes():
+        rows.append(_html(node.dimension_label()))
     cells = "".join(f"<TR><TD>{row}</TD></TR>" for row in rows)
     return f'<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">{cells}</TABLE>>'
 
@@ -101,6 +97,8 @@ def _node_statement(node: Node, indent: str = "  ") -> str:
              f'fillcolor="{_FILL[node.status]}"']
     if node.kind == "release":
         attrs += [f'fontcolor="{RELEASE_COLOUR}"', 'fontname="Helvetica-Bold"']
+    elif node.scope:
+        attrs.append(f'fontcolor="{SCOPE_TEXT_COLOUR[node.scope]}"')
     if node.complexity:
         attrs += [f'color="{COMPLEXITY_COLOUR[node.complexity]}"',
                   f"penwidth={COMPLEXITY_WIDTH[node.complexity]}"]
@@ -145,4 +143,48 @@ def render_svg(plan: Plan) -> str:
     svg = _PROLOG.sub("", result.stdout)
     svg = _ID_OR_CLASS_ATTR.sub(lambda m: f' {m.group(1)}="' + m.group(2).replace("&#45;", "-") + '"',
                                 svg)
-    return svg.strip() + "\n"
+    return _NODE_GROUP.sub(_centred_node, svg).strip() + "\n"
+
+
+# A3-6: Graphviz 2.43 draws an HTML label as one <text> per run, each anchored at its start
+# with widths measured in the font Graphviz found. A browser that draws a narrower or wider
+# face shifts every line sideways. Each line becomes one middle-anchored <text> at the
+# shape's centre; runs that differ (the bold id) become <tspan>s inside it.
+_NODE_GROUP = re.compile(r'(<g id="node-[^"]*" class="node[^"]*">)(.*?)(</g>)', re.S)
+_SHAPE_COORDS = re.compile(r'<(?:polygon|path) [^>]*?(?:points|d)="([^"]*)"')
+_TEXT_RUN = re.compile(r'<text ([^>]*)>([^<]*)</text>\n?')
+_ATTR = re.compile(r'([\w:-]+)="([^"]*)"')
+_POSITION = ("text-anchor", "x")
+
+
+def _centred_node(match: re.Match) -> str:
+    head, body, tail = match.groups()
+    shape = _SHAPE_COORDS.search(body)
+    runs = list(_TEXT_RUN.finditer(body))
+    if shape is None or not runs:
+        return match.group(0)
+    xs = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", shape.group(1))][0::2]
+    centre = f"{(min(xs) + max(xs)) / 2:.2f}".rstrip("0").rstrip(".")
+    lines: list[list[tuple[dict[str, str], str]]] = []
+    for run in runs:
+        attrs = dict(_ATTR.findall(run.group(1)))
+        if lines and lines[-1][0][0]["y"] == attrs["y"]:
+            lines[-1].append((attrs, run.group(2)))
+        else:
+            lines.append([(attrs, run.group(2))])
+    texts = "".join(_centred_line(line, centre) for line in lines)
+    return head + body[:runs[0].start()] + texts + body[runs[-1].end():] + tail
+
+
+def _centred_line(line: list[tuple[dict[str, str], str]], centre: str) -> str:
+    first = line[0][0]
+    common = {k: v for k, v in first.items()
+              if k not in _POSITION and all(attrs.get(k) == v for attrs, _ in line)}
+    outer = " ".join([f'text-anchor="middle" x="{centre}"'] + [f'{k}="{v}"' for k, v in common.items()])
+    if len(line) == 1:
+        return f"<text {outer}>{line[0][1]}</text>\n"
+    spans = []
+    for attrs, content in line:
+        own = " ".join(f'{k}="{v}"' for k, v in attrs.items() if k not in _POSITION and k not in common)
+        spans.append(f"<tspan {own}>{content}</tspan>" if own else f"<tspan>{content}</tspan>")
+    return f"<text {outer}>{''.join(spans)}</text>\n"
