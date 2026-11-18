@@ -136,3 +136,95 @@ class PinchTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# A3-5: drives makeFinder with fakes for the page: every mark and view change is logged.
+_FIND_DRIVER = """
+const { ids, boxes, view, queries } = JSON.parse(require("fs").readFileSync(0, "utf8"));
+const log = [];
+let current = view;
+const finder = makeFinder({
+  ids,
+  boxOf: (id) => boxes[id],
+  getView: () => current,
+  setView: (next) => { current = next; log.push(["view", next]); },
+  mark: (id, on) => log.push(["mark", id, on]),
+  limits: { min: 1, max: 100000 },
+});
+const found = queries.map((q) => finder.go(q));
+process.stdout.write(JSON.stringify({ found, log }));
+"""
+
+IDS = ["A3-7", "B4", "v1.0", "M3-1"]
+BOX = {"x": 100, "y": -60, "width": 40, "height": 20}  # centre (120, -50)
+FAR = {"x": 0, "y": -1000, "w": 4000, "h": 1000}       # the whole graph: far out
+
+
+def find(queries: list, ids: list = IDS, view: dict = FAR) -> dict:
+    from weaver.html import _FIND  # deferred: RED until the core exists
+    payload = {"ids": ids, "boxes": {i: BOX for i in ids}, "view": view, "queries": queries}
+    result = subprocess.run([NODE, "-e", _FIND + _FIND_DRIVER], input=json.dumps(payload),
+                            capture_output=True, text=True, timeout=10)
+    if result.returncode != 0:
+        raise AssertionError(result.stderr)
+    return json.loads(result.stdout)
+
+
+@unittest.skipUnless(NODE, "node not found: the find tests cannot run")
+class FindTest(unittest.TestCase):
+    """A3-5: PLAN.html#B4 (or the find box) highlights a node and brings it into view."""
+
+    def test_query_names_a_node(self):
+        cases = [("#B4", "B4"), ("B4", "B4"), ("  #B4 ", "B4"), ("#A3%2D7", "A3-7"),
+                 ("#v1.0", "v1.0"), ("b4", "B4"), ("#m3-1", "M3-1")]
+        for query, expected in cases:
+            with self.subTest(query):
+                self.assertEqual(find([query])["found"], [expected])
+
+    def test_unknown_or_malformed_query_changes_nothing(self):
+        """Unknown id = no change, no error: nothing marked, the view left alone."""
+        for query in ["#nope", "", "#", "   ", "#%E0%A4%A", "constructor", "__proto__", "B"]:
+            with self.subTest(query):
+                self.assertEqual(find([query]), {"found": [None], "log": []})
+
+    def test_case_folding_only_when_it_is_unambiguous(self):
+        ids = ["ab", "AB"]
+        self.assertEqual(find(["ab", "AB", "Ab"], ids=ids)["found"], ["ab", "AB", None])
+
+    def test_found_node_is_marked_and_the_previous_one_unmarked(self):
+        marks = [entry for entry in find(["#B4", "#A3-7", "#A3-7"])["log"] if entry[0] == "mark"]
+        self.assertEqual(marks, [["mark", "B4", True], ["mark", "B4", False], ["mark", "A3-7", True],
+                                 ["mark", "A3-7", True]])
+
+    def test_view_centres_on_the_node(self):
+        (view,) = [entry[1] for entry in find(["#B4"])["log"] if entry[0] == "view"]
+        self.assertAlmostEqual(view["x"] + view["w"] / 2, 120)
+        self.assertAlmostEqual(view["y"] + view["h"] / 2, -50)
+
+    def test_view_zooms_in_from_far_out_and_keeps_the_aspect_ratio(self):
+        (view,) = [entry[1] for entry in find(["#B4"])["log"] if entry[0] == "view"]
+        self.assertAlmostEqual(view["w"], BOX["width"] * 5)
+        self.assertAlmostEqual(view["h"] / view["w"], FAR["h"] / FAR["w"])
+
+    def test_view_never_zooms_out_from_a_closer_look(self):
+        close = {"x": 0, "y": 0, "w": 150, "h": 100}
+        (view,) = [entry[1] for entry in find(["#B4"], view=close)["log"] if entry[0] == "view"]
+        self.assertAlmostEqual(view["w"], 150)
+
+    def test_view_always_fits_the_node(self):
+        """Zoomed closer than the node: back out until it fits with a margin, in both axes."""
+        tiny = {"x": 0, "y": 0, "w": 10, "h": 2}
+        (view,) = [entry[1] for entry in find(["#B4"], view=tiny)["log"] if entry[0] == "view"]
+        self.assertGreater(view["w"], BOX["width"])
+        self.assertGreater(view["h"], BOX["height"])
+
+    def test_view_respects_the_zoom_limits(self):
+        from weaver.html import _FIND
+        script = _FIND + """
+        const v = focusView({x: 0, y: 0, w: 4000, h: 1000}, {x: 0, y: 0, width: 1, height: 1},
+                            {min: 200, max: 20000});
+        process.stdout.write(JSON.stringify(v));"""
+        view = json.loads(subprocess.run([NODE, "-e", script], capture_output=True, text=True,
+                                         timeout=10, check=True).stdout)
+        self.assertAlmostEqual(view["w"], 200)
+        self.assertAlmostEqual(view["x"] + view["w"] / 2, 0.5)

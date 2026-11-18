@@ -93,7 +93,10 @@ class TestExamplePage(unittest.TestCase):
 
     def test_viewer_contract_is_present(self):
         cases = ['id="reset-view"', 'id="node-dialog"', 'class="close"', "white-space: pre-wrap",
-                 "prefers-color-scheme: dark", "g.node { cursor: pointer; }", 'setAttribute("viewBox"']
+                 "prefers-color-scheme: dark", "g.node { cursor: pointer; }", 'setAttribute("viewBox"',
+                 # A3-5: the find box, the hash wiring and the highlight style.
+                 'id="find"', 'id="find-status"', 'role="status"', '"hashchange"', "makeFinder(",
+                 "g.node.found"]
         for needle in cases:
             with self.subTest(needle):
                 self.assertIn(needle, self.page)
