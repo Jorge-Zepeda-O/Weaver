@@ -58,8 +58,13 @@ body { margin: 0; padding: 16px; background: var(--wv-bg); color: var(--wv-fg);
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
 .caption { color: var(--wv-muted); margin: 0 0 1rem; max-width: 70ch; }
-.toolbar { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
+.toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .5rem; }
 .toolbar span { color: var(--wv-muted); font-size: .85rem; }
+#find { font: inherit; width: 9rem; color: var(--wv-fg); background: var(--wv-panel);
+  border: 1px solid var(--wv-border); border-radius: 6px; padding: .3rem .5rem; }
+/* A3-5: the node a link or the find box names. .rule is the card's rules (A3-7, lane graph). */
+#viewport g.node.found { filter: drop-shadow(0 0 6px var(--wv-accent)); }
+#viewport g.node.found :is(polygon, path):not(.rule) { stroke: var(--wv-accent); stroke-width: 4; }
 button { font: inherit; color: var(--wv-fg); background: var(--wv-panel); border: 1px solid var(--wv-border);
   border-radius: 6px; padding: .3rem .8rem; cursor: pointer; }
 button:hover { border-color: var(--wv-accent); }
@@ -193,7 +198,48 @@ const makeGestures = ({ pan, zoom }) => {
 };
 """
 
-_SCRIPT = _GESTURES + _PANEL + """
+# DOM-free find core (A3-5): a query (a URL hash or typed text) in, the node to show out;
+# marking and moving the view are handed in, so tests run it under Node with fakes, and
+# v0.4's outline buttons can reuse it. An unknown id changes nothing and throws nothing.
+_FIND = """
+const findNode = (query, ids) => {
+  let text = String(query ?? "").trim().replace(/^#/, "");
+  try { text = decodeURIComponent(text).trim(); } catch { return null; }
+  if (!text) return null;
+  if (ids.includes(text)) return text;
+  const folded = ids.filter((id) => id.toLowerCase() === text.toLowerCase());
+  return folded.length === 1 ? folded[0] : null;
+};
+
+// The view that shows box: centred on it, zoomed in to about five node widths, never out
+// from a closer look the reader chose, never so close that the node does not fit, and
+// within the zoom limits. The view keeps its aspect ratio.
+const focusView = (view, box, limits) => {
+  const aspect = view.h / view.w;
+  const fit = Math.max(box.width, box.height / aspect) * 1.5;
+  const wanted = Math.max(Math.min(view.w, box.width * 5), fit);
+  const w = Math.min(Math.max(wanted, limits.min), limits.max);
+  const h = w * aspect;
+  return { x: box.x + box.width / 2 - w / 2, y: box.y + box.height / 2 - h / 2, w, h };
+};
+
+const makeFinder = ({ ids, boxOf, getView, setView, mark, limits }) => {
+  let current = null;
+  return {
+    go(query) {
+      const id = findNode(query, ids);
+      if (id === null) return null;
+      if (current !== null && current !== id) mark(current, false);
+      mark(id, true);
+      current = id;
+      setView(focusView(getView(), boxOf(id), limits));
+      return id;
+    },
+  };
+};
+"""
+
+_SCRIPT = _GESTURES + _PANEL + _FIND + """
 (() => {
   const plan = JSON.parse(document.getElementById("plan-data").textContent);
   const viewport = document.getElementById("viewport");
@@ -334,6 +380,40 @@ _SCRIPT = _GESTURES + _PANEL + """
     const group = event.target.closest("g.node");
     if (group) openNode(nodeIdOf(group));
   });
+
+  // ---- find by id (A3-5): PLAN.html#B4, or the find box ----------------------
+  const ids = Object.keys(plan.nodes);
+  const groupOf = (id) => document.getElementById("node-" + id);
+  const finder = makeFinder({
+    ids,
+    // The node's box in the SVG's own units: its local box, through its transform.
+    boxOf: (id) => {
+      const group = groupOf(id), local = group.getBBox();
+      const matrix = svg.getScreenCTM().inverse().multiply(group.getScreenCTM());
+      const a = new DOMPoint(local.x, local.y).matrixTransform(matrix);
+      const b = new DOMPoint(local.x + local.width, local.y + local.height).matrixTransform(matrix);
+      return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y),
+               width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y) };
+    },
+    getView: () => view,
+    setView: (next) => { view = next; apply(); },
+    mark: (id, on) => groupOf(id).classList.toggle("found", on),
+    limits: { min: initial.w / 20, max: initial.w * 5 },
+  });
+  const findInput = document.getElementById("find");
+  const findStatus = document.getElementById("find-status");
+  findInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const id = findNode(findInput.value, ids);
+    findStatus.textContent = id === null ? "No node " + findInput.value.trim() + "." : "";
+    if (id === null) return;
+    // The hash makes the find a link; the same hash again fires no hashchange.
+    if (findNode(location.hash, ids) === id) finder.go(id);
+    else location.hash = id;
+  });
+  window.addEventListener("hashchange", () => finder.go(location.hash));
+  if (location.hash) finder.go(location.hash);
 
   // Esc closes a modal <dialog> natively.
   dialog.querySelector(".close").addEventListener("click", () => dialog.close());
@@ -479,6 +559,8 @@ def build_html(plan: Plan, svg: str) -> str:
 <body>
 <h1>{title}</h1>
 {goal}{caption}<div class="toolbar"><button type="button" id="reset-view">Reset view</button>
+<input type="search" id="find" placeholder="Find an id" aria-label="Find a node by id"
+ autocomplete="off" spellcheck="false"><span id="find-status" role="status"></span>
 <span>Drag to pan, scroll or pinch to zoom, click a node for details.</span></div>
 <div id="viewport">
 {inline_svg}</div>
