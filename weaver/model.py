@@ -135,3 +135,45 @@ class Plan:
             for node in self.nodes
             for dep in node.deps
         )
+
+
+@dataclass(frozen=True)
+class Overlap:
+    """Two nodes on separate tracks that both touch ``file`` (``a`` before ``b`` in plan order)."""
+    file: str
+    a: str
+    b: str
+
+
+def overlaps(plan: Plan) -> tuple[Overlap, ...]:
+    """Files touched by two nodes that nothing sequences, ordered by file then plan order.
+
+    A node with no group is its own group. Nodes related by a dependency, direct or
+    transitive over either seam, are one track; a pair that is entirely ``done`` is history.
+    """
+    ancestors: dict[str, frozenset[str]] = {}
+
+    def ancestors_of(node_id: str) -> frozenset[str]:
+        if node_id not in ancestors:
+            direct = [d.id for d in plan.node(node_id).deps]
+            ancestors[node_id] = frozenset(direct).union(*(ancestors_of(d) for d in direct))
+        return ancestors[node_id]
+
+    touching: dict[str, list[Node]] = {}
+    for node in plan.nodes:
+        for file in node.files:
+            touching.setdefault(file, []).append(node)
+
+    found = []
+    for file in sorted(touching):
+        nodes = touching[file]
+        for i, a in enumerate(nodes):
+            for b in nodes[i + 1:]:
+                if (a.group, a.id if not a.group else "") == (b.group, b.id if not b.group else ""):
+                    continue
+                if a.status == b.status == "done":
+                    continue
+                if a.id in ancestors_of(b.id) or b.id in ancestors_of(a.id):
+                    continue
+                found.append(Overlap(file, a.id, b.id))
+    return tuple(found)

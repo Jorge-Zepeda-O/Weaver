@@ -1,6 +1,7 @@
 """CLI (merge event M1): ``python -m weaver build PLAN.toml -o out/``.
 
-Exit codes: 0 built · 1 the plan is invalid · 2 wrong invocation or unreadable file.
+Exit codes: 0 built · 1 the plan is invalid · 2 wrong invocation or unreadable file ·
+3 overlaps found with --strict.
 """
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ import sys
 from pathlib import Path
 
 from .load import PlanError, load_plan
+from .model import overlaps
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -17,6 +19,8 @@ def main(argv: list[str] | None = None) -> int:
     build = commands.add_parser("build", help="render a plan file to SVG, HTML, Markdown and PDF")
     build.add_argument("plan", type=Path, help="the plan file (TOML)")
     build.add_argument("-o", "--out", type=Path, required=True, help="output directory")
+    build.add_argument("--strict", action="store_true",
+                       help="exit 3 when two groups touch the same file (the build still runs)")
     args = parser.parse_args(argv)
 
     if not args.plan.is_file():
@@ -44,9 +48,15 @@ def main(argv: list[str] | None = None) -> int:
         (args.out / name).write_text(text, encoding="utf-8")
     build_pdf(plan, svg, args.out / "PLAN.pdf")
 
+    found = overlaps(plan)
+    for overlap in found:
+        a, b = plan.node(overlap.a), plan.node(overlap.b)
+        print(f"weaver: overlap: {overlap.file} — {a.id} ({a.group or 'no group'}) × "
+              f"{b.id} ({b.group or 'no group'})", file=sys.stderr)
+    suffix = f", {len(found)} overlap{'s' * (len(found) != 1)}" if found else ""
     print(f"weaver: {len(plan.nodes)} nodes, {len(plan.edges())} edges → "
-          f"{', '.join([*outputs, 'PLAN.pdf'])} in {args.out}")
-    return 0
+          f"{', '.join([*outputs, 'PLAN.pdf'])} in {args.out}{suffix}")
+    return 3 if found and args.strict else 0
 
 
 if __name__ == "__main__":

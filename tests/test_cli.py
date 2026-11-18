@@ -99,5 +99,48 @@ class TestFailures(unittest.TestCase):
         self.assertEqual(_run().returncode, 2)
 
 
+class TestOverlapReporting(unittest.TestCase):
+    """A3-2: overlaps are loud on stderr but only fail the build under --strict."""
+    HEADER = '[plan]\nschema = 3\ntitle = "x"\n'
+    LINE = "weaver: overlap: f.py — a (g) × b (no group)"
+
+    def _build(self, nodes: str, *flags: str) -> subprocess.CompletedProcess:
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = Path(tmp) / "p.toml"
+            plan.write_text(self.HEADER + nodes, encoding="utf-8")
+            return _run("build", str(plan), "-o", str(Path(tmp) / "out"), *flags)
+
+    CLEAN = ('[[node]]\nid = "a"\ntitle = "a"\ngroup = "g"\nfiles = ["f.py"]\n'
+             '[[node]]\nid = "b"\ntitle = "b"\nfiles = ["f.py"]\ndeps = ["a"]\n')
+    CLASH = ('[[node]]\nid = "a"\ntitle = "a"\ngroup = "g"\nfiles = ["f.py"]\n'
+             '[[node]]\nid = "b"\ntitle = "b"\nfiles = ["f.py"]\n')
+
+    def test_no_overlap_is_silent(self):
+        result = self._build(self.CLEAN)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("overlap", result.stderr)
+        self.assertTrue(result.stdout.startswith("weaver: 2 nodes, 1 edges → "), result.stdout)
+        self.assertNotIn("overlap", result.stdout)
+
+    def test_overlap_warns_on_stderr_and_still_exits_zero(self):
+        result = self._build(self.CLASH)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr.splitlines(), [self.LINE])
+        self.assertTrue(result.stdout.endswith(", 1 overlap\n"), result.stdout)
+
+    def test_summary_pluralises(self):
+        three = self.CLASH + '[[node]]\nid = "c"\ntitle = "c"\ngroup = "i"\nfiles = ["f.py"]\n'
+        self.assertTrue(self._build(three).stdout.endswith(", 3 overlaps\n"))
+
+    def test_strict_with_overlap_exits_3_but_still_builds(self):
+        result = self._build(self.CLASH, "--strict")
+        self.assertEqual(result.returncode, 3)
+        self.assertEqual(result.stderr.splitlines(), [self.LINE])
+        self.assertIn(", 1 overlap\n", result.stdout)
+
+    def test_strict_without_overlap_exits_zero(self):
+        self.assertEqual(self._build(self.CLEAN, "--strict").returncode, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
