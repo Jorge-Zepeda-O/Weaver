@@ -29,7 +29,7 @@ SCHEMA_VERSION = SCHEMA_VERSIONS[-1]
 # What a version added: a plan using it must declare at least that version.
 KIND_SINCE: dict[str, int] = {"release": 2}
 # Node fields, and the plan-level [[overlap]] table, by the schema that introduced them.
-FIELD_SINCE: dict[str, int] = {"files": 3, "overlap": 3}
+FIELD_SINCE: dict[str, int] = {"files": 3, "overlap": 3, "reworks": 3}
 
 # Node ids end up in Graphviz source, SVG element ids and HTML, so they are
 # restricted to characters that are safe verbatim in all three.
@@ -82,6 +82,8 @@ class Node:
     verify: str = ""
     decisions: tuple[str, ...] = ()
     files: tuple[str, ...] = ()
+    # A3-11: earlier nodes this one fixes. Nodes are only added; a fix never reopens one.
+    reworks: tuple[str, ...] = ()
 
     @property
     def unguarded(self) -> bool:
