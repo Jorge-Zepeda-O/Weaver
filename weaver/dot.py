@@ -16,7 +16,7 @@ import shutil
 import subprocess
 import textwrap
 
-from .model import STATUSES, Node, Plan
+from .model import STATUSES, Node, Plan, overlaps
 from .tokens import LIGHT
 
 # Titles wrap at word boundaries, so a long title grows a node down, not across.
@@ -50,7 +50,7 @@ _PROLOG = re.compile(r"<\?xml[^>]*\?>|<!DOCTYPE[^>]*>")
 _ID_OR_CLASS_ATTR = re.compile(r' (id|class)="([^"]*)"')
 
 
-def node_classes(node: Node) -> str:
+def node_classes(node: Node, overlapping: bool = False) -> str:
     """Classes for the page's stylesheet (D-13); ``?`` becomes ``unknown`` to stay a plain CSS name."""
     classes = [f"kind-{node.kind}", f"status-{node.status}"]
     for name in ("scope", "amount", "complexity"):
@@ -59,6 +59,8 @@ def node_classes(node: Node) -> str:
             classes.append(f"{name}-{'unknown' if code == '?' else code}")
     if node.unguarded:
         classes.append("unguarded")
+    if overlapping:
+        classes.append("overlap")
     return " ".join(classes)
 
 
@@ -77,7 +79,7 @@ def _html(text: str) -> str:
             .replace('"', "&quot;"))
 
 
-def _card(node: Node) -> str:
+def _card(node: Node, overlapping: bool = False) -> str:
     """B4, laid out per A3-7 (layout C): the header (bold id, status) across the top over a
     rule; below it the wrapped title, and the codes in a right column behind a divider.
     Marker and letter sit in separate cells, so the letters line up although the markers
@@ -85,7 +87,8 @@ def _card(node: Node) -> str:
     title = "<BR/>".join(_html(line) for line in textwrap.wrap(
         node.title, TITLE_WIDTH, break_long_words=False, break_on_hyphens=False))
     codes = node.dimension_codes()
-    header = f"<B>{_html(node.id)}</B> · {_html(node.status_label())}"
+    # A3-4: ⚠ when this node and one in another lane touch the same file, unordered.
+    header = f"<B>{_html(node.id)}</B> · {_html(node.status_label())}" + (" · ⚠" if overlapping else "")
     table = f'<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" COLOR="{RULE_COLOUR}">'
     if not codes:
         return f"<{table}<TR><TD>{header}</TD></TR><HR/><TR><TD>{title}</TD></TR></TABLE>>"
@@ -95,12 +98,13 @@ def _card(node: Node) -> str:
     return f'<{table}<TR><TD COLSPAN="3">{header}</TD></TR><HR/>{body}</TABLE>>'
 
 
-def _node_statement(node: Node, indent: str = "  ") -> str:
+def _node_statement(node: Node, indent: str = "  ", overlapping: bool = False) -> str:
     shape, style = _SHAPE[node.kind]
     if node.unguarded:
         style += ",dashed"
     style_attr = f'"{style}"' if "," in style else style
-    attrs = [f'id="node-{node.id}"', f'class="{node_classes(node)}"', f"label={_card(node)}",
+    attrs = [f'id="node-{node.id}"', f'class="{node_classes(node, overlapping)}"',
+             f"label={_card(node, overlapping)}",
              f"shape={shape}", f"style={style_attr}",
              f'fillcolor="{_FILL[node.status]}"']
     if node.kind == "release":
@@ -124,14 +128,15 @@ def to_dot(plan: Plan) -> str:
         '  node [fontname="Helvetica", fontsize=11];',
         '  edge [fontname="Helvetica"];',
     ]
+    flagged = {node_id for overlap in overlaps(plan) for node_id in (overlap.a, overlap.b)}
     for index, group in enumerate(plan.groups()):
         lines += [f'  subgraph "cluster_{index}" {{',
                   f"    label={_quote(group)};",
                   '    class="lane";',
                   f'    style="rounded,dashed"; color="{LANE_COLOUR}"; fontcolor="{LIGHT["lane-text"]}";']
-        lines += [_node_statement(n, "    ") for n in plan.nodes if n.group == group]
+        lines += [_node_statement(n, "    ", n.id in flagged) for n in plan.nodes if n.group == group]
         lines.append("  }")
-    lines += [_node_statement(n) for n in plan.nodes if not n.group]
+    lines += [_node_statement(n, "  ", n.id in flagged) for n in plan.nodes if not n.group]
     for edge in plan.edges():
         style = ", style=dashed" if edge.seam == "runtime" else ""
         lines.append(f'  "{edge.source}" -> "{edge.target}" [class="seam-{edge.seam}"{style}];')

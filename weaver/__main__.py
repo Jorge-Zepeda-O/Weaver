@@ -51,10 +51,7 @@ def main(argv: list[str] | None = None) -> int:
 
     found = overlaps(plan)
     for overlap in found:
-        a, b = plan.node(overlap.a), plan.node(overlap.b)
-        acknowledged = f" — acknowledged: {overlap.reason}" if overlap.acknowledged else ""
-        print(f"weaver: overlap: {overlap.file} — {a.id} ({a.group or 'no group'}) × "
-              f"{b.id} ({b.group or 'no group'}){acknowledged}", file=sys.stderr)
+        print(f"weaver: overlap: {overlap.describe(plan)}", file=sys.stderr)
     acked = sum(overlap.acknowledged for overlap in found)
     suffix = (f", {len(found)} overlap{'s' * (len(found) != 1)}"
               + (f" ({acked} acknowledged)" if acked else "")) if found else ""

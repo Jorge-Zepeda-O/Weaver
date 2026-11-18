@@ -16,7 +16,7 @@ from typing import Any
 
 from .dot import (_FILL, AMOUNT_OUTLINES, COMPLEXITY_COLOUR, COMPLEXITY_WIDTH, RELEASE_COLOUR,
                   SCOPE_TEXT_COLOUR)
-from .model import DIMENSION_MARKER, DIMENSIONS, STATUS_SYMBOL, STATUSES, Plan
+from .model import DIMENSION_MARKER, DIMENSIONS, STATUS_SYMBOL, STATUSES, Plan, overlaps
 from .tokens import LIGHT, css_variables
 
 _SVG_XMLNS = re.compile(r'\s+xmlns(?::\w+)?="[^"]*"')
@@ -271,6 +271,27 @@ _SCRIPT = _GESTURES + _PANEL + """
       list.append(li);
     }
   };
+  // A3-4: the files this node shares with another lane, and why, where acknowledged.
+  const fillOverlaps = (overlaps) => {
+    const list = field("overlaps");
+    list.replaceChildren();
+    if (overlaps.length === 0) {
+      const li = document.createElement("li");
+      li.textContent = "none";
+      list.append(li);
+    }
+    for (const overlap of overlaps) {
+      const li = document.createElement("li");
+      li.textContent = "⚠ " + overlap.file + ": with " + overlap.other + " — " + plan.nodes[overlap.other].title;
+      if (overlap.reason) {
+        const reason = document.createElement("span");
+        reason.className = "seam";
+        reason.textContent = " (acknowledged: " + overlap.reason + ")";
+        li.append(reason);
+      }
+      list.append(li);
+    }
+  };
   const openNode = (id) => {
     const node = plan.nodes[id];
     if (!node) return;
@@ -286,6 +307,7 @@ _SCRIPT = _GESTURES + _PANEL + """
     field("notes").textContent = node.notes || "—";
     fillList("deps", node.deps);
     fillList("dependents", node.dependents);
+    fillOverlaps(node.overlaps);
     if (!dialog.open) dialog.showModal();
   };
   const nodeIdOf = (group) => group.id.startsWith("node-") ? group.id.slice(5) : null;
@@ -328,6 +350,7 @@ _DIALOG = """<dialog id="node-dialog" aria-labelledby="dialog-title">
     <dt>Decisions</dt><dd data-field="decisions"></dd>
     <dt>Depends on</dt><dd><ul data-field="deps"></ul></dd>
     <dt>Dependents</dt><dd><ul data-field="dependents"></ul></dd>
+    <dt>Overlaps</dt><dd><ul data-field="overlaps"></ul></dd>
   </dl>
   <p class="notes" data-field="notes"></p>
 </dialog>"""
@@ -343,6 +366,10 @@ def plan_data(plan: Plan) -> dict[str, Any]:
     dependents: dict[str, list[dict[str, str]]] = {n.id: [] for n in plan.nodes}
     for edge in plan.edges():
         dependents[edge.source].append({"id": edge.target, "seam": edge.seam})
+    shared: dict[str, list[dict[str, str]]] = {n.id: [] for n in plan.nodes}
+    for overlap in overlaps(plan):  # A3-4: each side lists the other
+        for here, other in ((overlap.a, overlap.b), (overlap.b, overlap.a)):
+            shared[here].append({"file": overlap.file, "other": other, "reason": overlap.reason})
     return {"terms": DIMENSIONS, "markers": DIMENSION_MARKER, "glyphs": GLYPHS, "nodes": {
         n.id: {"id": n.id, "title": n.title, "kind": n.kind, "status": n.status,
                "status_label": n.status_label(),
@@ -350,7 +377,7 @@ def plan_data(plan: Plan) -> dict[str, Any]:
                "complexity": n.complexity, "verify": n.verify, "decisions": list(n.decisions),
                "unguarded": n.unguarded,
                "deps": [{"id": d.id, "seam": d.seam} for d in n.deps],
-               "dependents": dependents[n.id]}
+               "dependents": dependents[n.id], "overlaps": shared[n.id]}
         for n in plan.nodes
     }}
 
@@ -404,6 +431,8 @@ def _legend() -> str:
                 for c, n in DIMENSIONS["complexity"].items()])),
         ("Amount (outlines)", items([(_outlines_swatch(int(AMOUNT_OUTLINES[c])), f"{GLYPHS['amount'][c]} {c} {n}")
                                      for c, n in DIMENSIONS["amount"].items()])),
+        ("Overlap (⚠)", escape("this node and one in another lane touch the same file, with nothing "
+                               "ordering them; the panel names the file and any acknowledged reason")),
         ("In each node", escape("↕scope (reach) ↔amount (breadth) ⤓complexity (depth); - unassessed, "
                                 "? assessed but unknowable (ranks worst)")),
     ]

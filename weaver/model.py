@@ -163,6 +163,12 @@ class Overlap:
     def acknowledged(self) -> bool:
         return bool(self.reason)
 
+    def describe(self, plan: Plan) -> str:
+        """``f.py — A (g) × B (no group)``, then `` — acknowledged: <reason>`` if it is."""
+        a, b = plan.node(self.a), plan.node(self.b)
+        line = f"{self.file} — {a.id} ({a.group or 'no group'}) × {b.id} ({b.group or 'no group'})"
+        return line + (f" — acknowledged: {self.reason}" if self.reason else "")
+
 
 def overlaps(plan: Plan) -> tuple[Overlap, ...]:
     """Files touched by two nodes that nothing sequences, ordered by file then plan order.
