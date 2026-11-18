@@ -58,6 +58,8 @@ class TestCommittedExample(unittest.TestCase):
     """docs/example/ is what the README shows; it must match the example plan.
 
     Regenerate with: python -m weaver build examples/weaver_plan.toml -o docs/example/
+    Rebuilt only at merge nodes, never on a lane branch: the lanes would conflict on it, so
+    on a lane these tests may be red until the lane merges.
     """
     DOCS = ROOT / "docs" / "example"
 
@@ -67,6 +69,20 @@ class TestCommittedExample(unittest.TestCase):
         self.assertEqual((self.DOCS / "PLAN.md").read_text(encoding="utf-8"),
                          to_markdown(load_plan(EXAMPLE)),
                          "docs/example/ is stale: rebuild it (see the docstring)")
+
+    def test_svg_and_html_are_current(self):
+        """T-9: the README's image and the page go stale as easily as the Markdown. Graphviz
+        is byte-stable between runs, but another Graphviz version may draw differently."""
+        from weaver import load_plan
+        from weaver.dot import render_svg
+        from weaver.html import build_html
+        plan = load_plan(EXAMPLE)
+        svg = render_svg(plan)
+        for name, expected in [("plan.svg", svg), ("PLAN.html", build_html(plan, svg))]:
+            with self.subTest(name):
+                self.assertEqual((self.DOCS / name).read_text(encoding="utf-8"), expected,
+                                 f"docs/example/{name} is stale: rebuild it (see the docstring), "
+                                 "or your Graphviz version draws differently")
 
     def test_every_view_is_committed(self):
         for name in ["plan.svg", "PLAN.html", "PLAN.md", "PLAN.pdf"]:
