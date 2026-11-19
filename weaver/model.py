@@ -155,36 +155,80 @@ class Overlap:
     """Two nodes on separate tracks that both touch ``file`` (``a`` before ``b`` in plan order).
 
     ``reason`` comes from the plan's ``[[overlap]]`` entry naming both; ``""`` when none does.
-    An acknowledged overlap is still an overlap: it is reported, never hidden (A3-3)."""
+    An acknowledged overlap is still an overlap: it is reported, never hidden (A3-3).
+    ``landed`` is the side that already landed in the merge or release ``landed_in``
+    (A4-1); both ``""`` when neither side has."""
     file: str
     a: str
     b: str
     reason: str = ""
+    landed: str = ""
+    landed_in: str = ""
 
     @property
     def acknowledged(self) -> bool:
         return bool(self.reason)
 
     def describe(self, plan: Plan) -> str:
-        """``f.py — A (g) × B (no group)``, then `` — acknowledged: <reason>`` if it is."""
+        """``f.py — A (g) × B (no group)``, then the landing hint, then
+        `` — acknowledged: <reason>`` if it is."""
         a, b = plan.node(self.a), plan.node(self.b)
         line = f"{self.file} — {a.id} ({a.group or 'no group'}) × {b.id} ({b.group or 'no group'})"
+        if self.landed:
+            other = self.b if self.landed == self.a else self.a
+            where = "" if self.landed_in == self.landed else f" in {self.landed_in}"
+            line += (f" — {self.landed} landed{where}: if {other} builds on {self.landed_in}, "
+                     f"add it to {other}'s deps")
         return line + (f" — acknowledged: {self.reason}" if self.reason else "")
+
+
+def _closure(plan: Plan, node_id: str, seams: tuple[Seam, ...],
+             memo: dict[str, frozenset[str]]) -> frozenset[str]:
+    """Every node ``node_id`` depends on, transitively, over the given seams."""
+    if node_id not in memo:
+        direct = [d.id for d in plan.node(node_id).deps if d.seam in seams]
+        memo[node_id] = frozenset(direct).union(*(_closure(plan, d, seams, memo) for d in direct))
+    return memo[node_id]
+
+
+def landings(plan: Plan) -> dict[str, str]:
+    """A4-1: each landed node → the merge or release it first landed in.
+
+    A node has landed when it is done and a done merge or release depends on it over build
+    seams (a runtime seam consumes output, it merges no code), or when it is that done merge
+    or release itself. Under D-21 only a landed node is on ``main``; done alone is not merged.
+    The first landing is one no other candidate lies upstream of; ties go to plan order.
+    """
+    memo: dict[str, frozenset[str]] = {}
+    gates = [n for n in plan.nodes if n.kind in ("merge", "release") and n.status == "done"]
+    found: dict[str, str] = {}
+    for node in plan.nodes:
+        if node.status != "done":
+            continue
+        if node in gates:
+            found[node.id] = node.id
+            continue
+        candidates = [g.id for g in gates if node.id in _closure(plan, g.id, ("build",), memo)]
+        first = [c for c in candidates
+                 if not any(o in _closure(plan, c, ("build",), memo) for o in candidates)]
+        if first:
+            found[node.id] = first[0]
+    return found
 
 
 def overlaps(plan: Plan) -> tuple[Overlap, ...]:
     """Files touched by two nodes that nothing sequences, ordered by file then plan order.
 
     A node with no group is its own group. Nodes related by a dependency, direct or
-    transitive over either seam, are one track; a pair that is entirely ``done`` is history.
+    transitive over either seam, are one track. A pair where both sides landed is history
+    (A4-1; v0.3 took any done pair as history, but done is not merged under D-21).
     """
     ancestors: dict[str, frozenset[str]] = {}
 
     def ancestors_of(node_id: str) -> frozenset[str]:
-        if node_id not in ancestors:
-            direct = [d.id for d in plan.node(node_id).deps]
-            ancestors[node_id] = frozenset(direct).union(*(ancestors_of(d) for d in direct))
-        return ancestors[node_id]
+        return _closure(plan, node_id, SEAMS, ancestors)
+
+    landed = landings(plan)
 
     touching: dict[str, list[Node]] = {}
     for node in plan.nodes:
@@ -198,11 +242,12 @@ def overlaps(plan: Plan) -> tuple[Overlap, ...]:
             for b in nodes[i + 1:]:
                 if (a.group, a.id if not a.group else "") == (b.group, b.id if not b.group else ""):
                     continue
-                if a.status == b.status == "done":
+                if a.id in landed and b.id in landed:
                     continue
                 if a.id in ancestors_of(b.id) or b.id in ancestors_of(a.id):
                     continue
                 reason = next((ack.reason for ack in plan.acknowledgements
                                if ack.file == file and {a.id, b.id} <= set(ack.nodes)), "")
-                found.append(Overlap(file, a.id, b.id, reason))
+                side = a.id if a.id in landed else b.id if b.id in landed else ""
+                found.append(Overlap(file, a.id, b.id, reason, side, landed.get(side, "")))
     return tuple(found)
