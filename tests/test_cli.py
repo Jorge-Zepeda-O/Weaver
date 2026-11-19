@@ -289,6 +289,69 @@ class TestStaleReporting(unittest.TestCase):
         self.assertTrue(result.stdout.endswith(", 1 acknowledgement now history (prunable)\n"),
                         result.stdout)
 
+class TestSnapshotAndHistory(unittest.TestCase):
+    """A4-5: weaver snapshot writes a stamped folder; weaver history reads a series of them."""
+    PLAN = '[plan]\nschema = 3\ntitle = "x"\n[[node]]\nid = "a"\ntitle = "a"\nstatus = "{}"\n'
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_snapshot_reports_the_folder_it_wrote(self):
+        plan = self.root / "p.toml"
+        plan.write_text(self.PLAN.format("todo"), encoding="utf-8")
+        result = _run("snapshot", str(plan), "-d", str(self.root / "snaps"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        (folder,) = (self.root / "snaps").iterdir()
+        self.assertEqual(result.stdout, f"weaver: snapshot → {folder}\n")
+        self.assertTrue((folder / "plan.toml").is_file())
+
+    def test_snapshot_of_a_missing_plan_exits_2(self):
+        result = _run("snapshot", str(self.root / "nope.toml"), "-d", str(self.root))
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("no such plan file", result.stderr)
+
+    def test_snapshot_of_an_invalid_plan_exits_1(self):
+        plan = self.root / "p.toml"
+        plan.write_text("not toml [", encoding="utf-8")
+        self.assertEqual(_run("snapshot", str(plan), "-d", str(self.root / "s")).returncode, 1)
+        self.assertFalse((self.root / "s").exists())
+
+    def _snap(self, name: str, status: str | None) -> None:
+        (self.root / name).mkdir()
+        if status:
+            (self.root / name / "plan.toml").write_text(self.PLAN.format(status), encoding="utf-8")
+
+    def test_history_lists_early_work_and_counts_what_it_read(self):
+        self._snap("PLAN_20261119_000001", None)
+        self._snap("PLAN_20261119_000002", "doing")
+        result = _run("history", str(self.root))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "weaver: skipped PLAN_20261119_000001: no plan.toml\n")
+        self.assertEqual(result.stdout.splitlines(),
+                         ["weaver: a first seen doing in PLAN_20261119_000002",
+                          "weaver: 1 snapshot read, 1 skipped; "
+                          "1 node built or started before it was planned"])
+
+    def test_history_says_so_when_everything_was_planned_first(self):
+        self._snap("PLAN_20261119_000001", "todo")
+        self._snap("PLAN_20261119_000002", "done")
+        self.assertEqual(_run("history", str(self.root)).stdout,
+                         "weaver: 2 snapshots read; every node was planned before work started\n")
+
+    def test_history_that_read_nothing_is_loud(self):
+        """'I read nothing' must never look like 'I found nothing'."""
+        self._snap("PLAN_20261119_000001", None)
+        result = _run("history", str(self.root))
+        self.assertEqual(result.returncode, 2)
+        self.assertIn(f"weaver: no readable snapshot in {self.root}", result.stderr)
+
+    def test_history_of_a_missing_folder_exits_2(self):
+        self.assertEqual(_run("history", str(self.root / "nope")).returncode, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
