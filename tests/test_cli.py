@@ -120,7 +120,12 @@ class TestOverlapReporting(unittest.TestCase):
     HEADER = '[plan]\nschema = 3\ntitle = "x"\n'
     LINE = "weaver: overlap: f.py — a (g) × b (no group)"
 
-    def _build(self, nodes: str, *flags: str) -> subprocess.CompletedProcess:
+    DIMS = 'scope = "L"\namount = "1"\ncomplexity = "E"\n'
+
+    def _build(self, nodes: str, *flags: str, dims: bool = True) -> subprocess.CompletedProcess:
+        """Every node is assessed unless ``dims`` is off, so A4-3 stays out of these tests."""
+        if dims:
+            nodes = nodes.replace("[[node]]\n", "[[node]]\n" + TestOverlapReporting.DIMS)
         with tempfile.TemporaryDirectory() as tmp:
             plan = Path(tmp) / "p.toml"
             plan.write_text(self.HEADER + nodes, encoding="utf-8")
@@ -180,6 +185,27 @@ class TestAcknowledgedReporting(unittest.TestCase):
         result = self._build(TestOverlapReporting.CLASH + self.THIRD + self.ACK, "--strict")
         self.assertEqual(result.returncode, 3)
         self.assertTrue(result.stdout.endswith(", 3 overlaps (1 acknowledged)\n"), result.stdout)
+
+
+class TestUnassessedReporting(unittest.TestCase):
+    """A4-3: an unassessed node is loud on stderr, counted in the summary, and fails --strict."""
+    HEADER = TestOverlapReporting.HEADER
+    _build = TestOverlapReporting._build
+    BARE = '[[node]]\nid = "a"\ntitle = "a"\n'
+
+    def test_unassessed_node_warns_and_is_counted(self):
+        result = self._build(self.BARE, dims=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr.splitlines(), ["weaver: unassessed: a — no scope, amount, complexity"])
+        self.assertTrue(result.stdout.endswith(", 1 unassessed\n"), result.stdout)
+
+    def test_strict_fails_on_an_unassessed_node(self):
+        self.assertEqual(self._build(self.BARE, "--strict", dims=False).returncode, 3)
+
+    def test_assessed_plan_says_nothing(self):
+        result = self._build(self.BARE, "--strict")
+        self.assertEqual((result.returncode, result.stderr), (0, ""))
+        self.assertNotIn("unassessed", result.stdout)
 
 
 class TestStaleReporting(unittest.TestCase):
