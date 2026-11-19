@@ -208,6 +208,34 @@ class TestUnassessedReporting(unittest.TestCase):
         self.assertNotIn("unassessed", result.stdout)
 
 
+class TestReleaseReporting(unittest.TestCase):
+    """A4-4: an orphan release fails --strict; an unordered pair of releases is only a note."""
+    HEADER = '[plan]\nschema = 3\ntitle = "x"\n'
+    _build = TestOverlapReporting._build
+
+    @staticmethod
+    def _release(node_id: str, *deps: str) -> str:
+        return (f'[[node]]\nid = "{node_id}"\ntitle = "{node_id}"\nkind = "release"\n'
+                f'verify = "v"\ndeps = {list(deps)!r}\n').replace("'", '"')
+
+    def test_orphan_release_warns_and_fails_strict(self):
+        plan = self._release("r1") + self._release("r2") + self._release("r3")
+        result = self._build(plan, "--strict")
+        self.assertEqual(result.returncode, 3)
+        self.assertEqual(result.stderr.splitlines(),
+                         ["weaver: orphan release: r2 — depends on no release; the first release is r1",
+                          "weaver: orphan release: r3 — depends on no release; the first release is r1"])
+        self.assertTrue(result.stdout.endswith(", 2 orphan releases\n"), result.stdout)
+
+    def test_unordered_releases_are_a_note_that_passes_strict(self):
+        plan = self._release("r1") + self._release("r2", "r1") + self._release("r3", "r1")
+        result = self._build(plan, "--strict")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr.splitlines(),
+                         ["weaver: unordered releases: r3 — neither r2 nor r3 depends on the other"])
+        self.assertTrue(result.stdout.endswith(", 1 unordered release pair\n"), result.stdout)
+
+
 class TestStaleReporting(unittest.TestCase):
     """A4-2: a stale [[overlap]] entry is loud and fails --strict; history is only counted."""
     HEADER = TestOverlapReporting.HEADER

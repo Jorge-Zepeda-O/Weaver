@@ -1,8 +1,8 @@
 """CLI (merge event M1): ``python -m weaver build PLAN.toml -o out/``.
 
 Exit codes: 0 built · 1 the plan is invalid · 2 wrong invocation or unreadable file ·
-3 with --strict: an unacknowledged overlap, a stale acknowledgement, or a strict finding
-(an unassessed node, …).
+3 with --strict: an unacknowledged overlap, a stale acknowledgement, an unassessed node or
+an orphan release (an unordered pair of releases is only a note).
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 from .load import PlanError, load_plan
-from .checks import findings
+from .checks import findings, summary
 from .model import acknowledgement_report, overlaps
 
 
@@ -68,8 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         suffix += f", {stale_entries} stale acknowledgement{'s' * (stale_entries != 1)}"
     if history:
         suffix += f", {history} acknowledgement{'s' * (history != 1)} now history (prunable)"
-    for check in dict.fromkeys(finding.check for finding in checked):
-        suffix += f", {sum(finding.check == check for finding in checked)} {check}"
+    suffix += summary(checked)
     print(f"weaver: {len(plan.nodes)} nodes, {len(plan.edges())} edges → "
           f"{', '.join([*outputs, 'PLAN.pdf'])} in {args.out}{suffix}")
     failed = acked < len(found) or stale_entries or any(f.strict for f in checked)
