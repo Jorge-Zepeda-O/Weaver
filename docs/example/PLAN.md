@@ -25,7 +25,7 @@ One plan file, three views. A0 is the shared contract and lands first; the A2→
 
 **Overlaps:**
 
-- weaver/markdown.py — A4 (main) × A6 (graph) — acknowledged: A6 only appends a list after the key that A4 writes
+- weaver/markdown.py — A4 (main) × A6 (graph) — A4 landed in M1: if A6 builds on M1, add it to A6's deps — acknowledged: A6 only appends a list after the key that A4 writes
 
 ## Field notes
 
