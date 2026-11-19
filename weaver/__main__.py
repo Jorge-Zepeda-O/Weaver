@@ -24,8 +24,9 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("plan", type=Path, help="the plan file (TOML)")
     build.add_argument("-o", "--out", type=Path, required=True, help="output directory")
     build.add_argument("--strict", action="store_true",
-                       help="exit 3 when two groups touch the same file and no [[overlap]] "
-                            "entry acknowledges it (the build still runs)")
+                       help="exit 3 on an unacknowledged overlap, a stale [[overlap]] entry, an "
+                            "unassessed node, an orphan release or a done node on unfinished "
+                            "build work (the build still runs; notes never fail it)")
     snap = commands.add_parser("snapshot", help="write PLAN_<time>/ with the plan file and its views")
     snap.add_argument("plan", type=Path, help="the plan file (TOML)")
     snap.add_argument("-d", "--dir", type=Path, required=True, help="the snapshots folder")
