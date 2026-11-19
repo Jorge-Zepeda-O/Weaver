@@ -15,6 +15,7 @@ SUMMARY: dict[str, tuple[str, str]] = {
     "unassessed": ("unassessed", "unassessed"),
     "orphan release": ("orphan release", "orphan releases"),
     "unordered releases": ("unordered release pair", "unordered release pairs"),
+    "done on unfinished": ("done node on unfinished work", "done nodes on unfinished work"),
 }
 
 
@@ -68,6 +69,19 @@ def release_order(plan: Plan) -> tuple[Finding, ...]:
     return tuple(found)
 
 
+def done_on_unfinished(plan: Plan) -> tuple[Finding, ...]:
+    """A4-4: a done node may not depend, over a build seam, on a node that is not done; it is
+    the slip nobody recorded (a done release still listing work that moved on). Over a
+    runtime seam it may be legitimate (consumed late), so it is a note for a person to weigh
+    while planning, never failing --strict."""
+    status = {node.id: node.status for node in plan.nodes}
+    return tuple(Finding("done on unfinished", node.id,
+                         f"depends{' at runtime' * (dep.seam == 'runtime')} on {dep.id}, "
+                         f"which is {status[dep.id]}", strict=dep.seam == "build")
+                 for node in plan.nodes if node.status == "done"
+                 for dep in node.deps if status[dep.id] != "done")
+
+
 def findings(plan: Plan) -> tuple[Finding, ...]:
     """Every check's findings, check by check, each in plan order."""
-    return unassessed(plan) + release_order(plan)
+    return unassessed(plan) + release_order(plan) + done_on_unfinished(plan)

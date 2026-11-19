@@ -236,6 +236,28 @@ class TestReleaseReporting(unittest.TestCase):
         self.assertTrue(result.stdout.endswith(", 1 unordered release pair\n"), result.stdout)
 
 
+class TestDoneOnUnfinishedReporting(unittest.TestCase):
+    """A4-4: a done node on unfinished build work fails --strict; at runtime it is a note."""
+    HEADER = TestOverlapReporting.HEADER
+    _build = TestOverlapReporting._build
+    E = '[[node]]\nid = "e"\ntitle = "e"\n'
+
+    def test_build_seam_warns_and_fails_strict(self):
+        result = self._build(self.E + '[[node]]\nid = "r"\ntitle = "r"\nstatus = "done"\n'
+                             'deps = ["e"]\n', "--strict")
+        self.assertEqual(result.returncode, 3)
+        self.assertEqual(result.stderr.splitlines(),
+                         ["weaver: done on unfinished: r — depends on e, which is todo"])
+        self.assertTrue(result.stdout.endswith(", 1 done node on unfinished work\n"), result.stdout)
+
+    def test_runtime_seam_is_a_note_that_passes_strict(self):
+        result = self._build(self.E + '[[node]]\nid = "r"\ntitle = "r"\nstatus = "done"\n'
+                             'runtime_deps = ["e"]\n', "--strict")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr.splitlines(),
+                         ["weaver: done on unfinished: r — depends at runtime on e, which is todo"])
+
+
 class TestStaleReporting(unittest.TestCase):
     """A4-2: a stale [[overlap]] entry is loud and fails --strict; history is only counted."""
     HEADER = TestOverlapReporting.HEADER

@@ -94,5 +94,38 @@ class TestReleaseOrder(unittest.TestCase):
                                    "neither r2 nor r3 depends on the other", False)])
 
 
+class TestDoneOnUnfinished(unittest.TestCase):
+    """A4-4 (ruled 20261119): a done node may not depend, over a build seam, on a node that is
+    not done: it is the slip nobody recorded (a done R1 still listing a todo E). Fails
+    --strict. Over a runtime seam it may be legitimate (consumed late), so it is a note that
+    a person weighs while planning, never failing --strict."""
+
+    def _hits(self, *nodes):
+        return [f for f in _findings(*nodes) if f[0] == "done on unfinished"]
+
+    def test_truth_table(self):
+        cases = [
+            ("done on done", [_node("e", "done"), _node("r", "done", deps=["e"])], []),
+            ("todo on todo", [_node("e"), _node("r", deps=["e"])], []),
+            ("done on todo", [_node("e"), _node("r", "done", deps=["e"])],
+             [("done on unfinished", "r", "depends on e, which is todo", True)]),
+            ("done on doing", [_node("e", "doing"), _node("r", "done", deps=["e"])],
+             [("done on unfinished", "r", "depends on e, which is doing", True)]),
+            ("done on blocked", [_node("e", "blocked"), _node("r", "done", deps=["e"])],
+             [("done on unfinished", "r", "depends on e, which is blocked", True)]),
+            ("a runtime seam is a note",
+             [_node("e"), _node("r", "done", runtime_deps=["e"])],
+             [("done on unfinished", "r", "depends at runtime on e, which is todo", False)]),
+        ]
+        for name, nodes, expected in cases:
+            with self.subTest(name):
+                self.assertEqual(self._hits(*nodes), expected)
+
+    def test_one_finding_per_unfinished_dependency(self):
+        result = self._hits(_node("e"), _node("f", "doing"), _node("r", "done", deps=["e", "f"]))
+        self.assertEqual([f[2] for f in result],
+                         ["depends on e, which is todo", "depends on f, which is doing"])
+
+
 if __name__ == "__main__":
     unittest.main()

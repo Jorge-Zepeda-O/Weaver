@@ -1,8 +1,9 @@
 """CLI (merge event M1): ``python -m weaver build PLAN.toml -o out/``.
 
 Exit codes: 0 built · 1 the plan is invalid · 2 wrong invocation or unreadable file ·
-3 with --strict: an unacknowledged overlap, a stale acknowledgement, an unassessed node or
-an orphan release (an unordered pair of releases is only a note).
+3 with --strict: an unacknowledged overlap, a stale acknowledgement, an unassessed node,
+an orphan release, or a done node on unfinished work (an unordered pair of releases is
+only a note).
 """
 from __future__ import annotations
 
