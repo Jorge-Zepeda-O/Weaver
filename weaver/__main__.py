@@ -1,7 +1,7 @@
 """CLI (merge event M1): ``python -m weaver build PLAN.toml -o out/``.
 
 Exit codes: 0 built · 1 the plan is invalid · 2 wrong invocation or unreadable file ·
-3 unacknowledged overlaps found with --strict.
+3 with --strict: an unacknowledged overlap or a stale acknowledgement.
 """
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 from .load import PlanError, load_plan
-from .model import overlaps
+from .model import acknowledgement_report, overlaps
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -52,12 +52,21 @@ def main(argv: list[str] | None = None) -> int:
     found = overlaps(plan)
     for overlap in found:
         print(f"weaver: overlap: {overlap.describe(plan)}", file=sys.stderr)
+    stale, history = acknowledgement_report(plan)
+    for entry in stale:
+        print(f"weaver: stale acknowledgement: {entry.describe()}", file=sys.stderr)
     acked = sum(overlap.acknowledged for overlap in found)
+    stale_entries = len({entry.entry for entry in stale})
     suffix = (f", {len(found)} overlap{'s' * (len(found) != 1)}"
               + (f" ({acked} acknowledged)" if acked else "")) if found else ""
+    if stale_entries:
+        suffix += f", {stale_entries} stale acknowledgement{'s' * (stale_entries != 1)}"
+    if history:
+        suffix += f", {history} acknowledgement{'s' * (history != 1)} now history (prunable)"
     print(f"weaver: {len(plan.nodes)} nodes, {len(plan.edges())} edges → "
           f"{', '.join([*outputs, 'PLAN.pdf'])} in {args.out}{suffix}")
-    return 3 if args.strict and acked < len(found) else 0
+    failed = acked < len(found) or stale_entries
+    return 3 if args.strict and failed else 0
 
 
 if __name__ == "__main__":

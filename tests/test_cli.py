@@ -182,5 +182,37 @@ class TestAcknowledgedReporting(unittest.TestCase):
         self.assertTrue(result.stdout.endswith(", 3 overlaps (1 acknowledged)\n"), result.stdout)
 
 
+class TestStaleReporting(unittest.TestCase):
+    """A4-2: a stale [[overlap]] entry is loud and fails --strict; history is only counted."""
+    HEADER = TestOverlapReporting.HEADER
+    _build = TestOverlapReporting._build
+    ORDERED = ('[[node]]\nid = "a"\ntitle = "a"\ngroup = "g"\nfiles = ["f.py"]\n'
+               '[[node]]\nid = "b"\ntitle = "b"\ngroup = "h"\nfiles = ["f.py"]\ndeps = ["a"]\n')
+    LANDED = ('[[node]]\nid = "a"\ntitle = "a"\ngroup = "g"\nfiles = ["f.py"]\nstatus = "done"\n'
+              '[[node]]\nid = "b"\ntitle = "b"\ngroup = "h"\nfiles = ["f.py"]\nstatus = "done"\n'
+              '[[node]]\nid = "m"\ntitle = "m"\nkind = "merge"\nstatus = "done"\n'
+              'verify = "v"\ndeps = ["a", "b"]\n')
+    ACK = TestAcknowledgedReporting.ACK
+    WHY = "shares a lane or a dependency with every other node named"
+
+    def test_stale_entry_is_listed_per_node_and_counted_per_entry(self):
+        result = self._build(self.ORDERED + self.ACK)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr.splitlines(),
+                         [f"weaver: stale acknowledgement: f.py — a {self.WHY}",
+                          f"weaver: stale acknowledgement: f.py — b {self.WHY}"])
+        self.assertTrue(result.stdout.endswith(", 1 stale acknowledgement\n"), result.stdout)
+
+    def test_strict_fails_on_a_stale_entry_even_with_no_overlap(self):
+        self.assertEqual(self._build(self.ORDERED + self.ACK, "--strict").returncode, 3)
+
+    def test_history_is_counted_not_listed_and_passes_strict(self):
+        result = self._build(self.LANDED + self.ACK, "--strict")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertTrue(result.stdout.endswith(", 1 acknowledgement now history (prunable)\n"),
+                        result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

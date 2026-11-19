@@ -87,9 +87,9 @@ class TestAcknowledged(unittest.TestCase):
         plan = self._plan({"file": "x.py", "nodes": ["a", "b"], "reason": "r"}, nodes=nodes)
         self.assertEqual([(o.file, o.reason) for o in overlaps(plan)], [("f.py", ""), ("x.py", "r")])
 
-    def test_a_stale_entry_is_silent(self):
-        """The overlap went away (here: the pair is now sequenced). Plans only grow, so an old
-        acknowledgement stays valid and reports nothing."""
+    def test_a_stale_entry_adds_no_overlap(self):
+        """The overlap went away (here: the pair is now sequenced): the entry brings back no
+        overlap. Since A4-2 the entry itself is reported as stale (TestStaleAcknowledgements)."""
         nodes = [_node("a", "g"), _node("b", "h", deps=["a"])]
         plan = self._plan({"file": "f.py", "nodes": ["a", "b"], "reason": "r"}, nodes=nodes)
         self.assertEqual(overlaps(plan), ())
@@ -155,6 +155,71 @@ class TestLanding(unittest.TestCase):
         nodes = [_landing("m"), _node("b", "h")]
         nodes[0]["files"] = ["f.py"]
         self.assertEqual(_overlaps(*nodes), (Overlap("f.py", "m", "b", landed="m", landed_in="m"),))
+
+
+def _report(nodes, *acks: dict):
+    from weaver.model import acknowledgement_report
+    return acknowledgement_report(parse_plan({"plan": {"schema": 3, "title": "T"},
+                                              "node": list(nodes), "overlap": list(acks)}))
+
+
+def _ack(*node_ids: str, file: str = "f.py") -> dict:
+    return {"file": file, "nodes": list(node_ids), "reason": "r"}
+
+
+class TestStaleAcknowledgements(unittest.TestCase):
+    """A4-2 (ruled 20261119): an entry is stale where the structure changed: a node it names
+    now shares a lane or a dependency with every other node it names. (A node that no longer
+    lists the file is worse: the loader rejects it, A3-3.) An entry whose pairs all landed is
+    history: never stale, only counted."""
+
+    def _stale(self, nodes, *acks):
+        stale, _ = _report(nodes, *acks)
+        return [(s.file, s.node, s.why) for s in stale]
+
+    def test_truth_table(self):
+        lane = "shares a lane or a dependency with every other node named"
+        cases = [
+            ("open overlap", [_node("a", "g"), _node("b", "h")], []),
+            ("same lane now", [_node("a", "g"), _node("b", "g")],
+             [("f.py", "a", lane), ("f.py", "b", lane)]),
+            ("ordered now", [_node("a", "g"), _node("b", "h", deps=["a"])],
+             [("f.py", "a", lane), ("f.py", "b", lane)]),
+            ("both landed is history, not stale",
+             [_node("a", "g", status="done"), _node("b", "h", status="done"),
+              _landing("m", deps=["a", "b"])], []),
+            ("done but not landed is still open", [_node("a", "g", status="done"),
+                                                   _node("b", "h", status="done")], []),
+        ]
+        for name, nodes, expected in cases:
+            with self.subTest(name):
+                self.assertEqual(self._stale(nodes, _ack("a", "b")), expected)
+
+    def test_a_multi_node_entry_may_name_a_lane_twice(self):
+        """One entry naming a lane's nodes is the cheap form (A4-6): same-lane pairs inside it
+        are fine as long as each node still overlaps one other node named."""
+        nodes = [_node("a", "g"), _node("b", "g"), _node("c", "h")]
+        self.assertEqual(self._stale(nodes, _ack("a", "b", "c")), [])
+
+    def test_names_only_the_node_that_is_sequenced_with_all_others(self):
+        """c now depends on a and b; a and b still clash with each other."""
+        nodes = [_node("a", "g"), _node("b", "h"), _node("c", "i", deps=["a", "b"])]
+        self.assertEqual(self._stale(nodes, _ack("a", "b", "c")),
+                         [("f.py", "c", "shares a lane or a dependency with every other node named")])
+
+    def test_history_is_counted_per_entry(self):
+        done = [_node("a", "g", status="done", files=["f.py", "x.py"]),
+                _node("b", "h", status="done", files=["f.py", "x.py"]),
+                _node("c", "i"), _landing("m", deps=["a", "b"])]
+        cases = [
+            ("all pairs landed", [_ack("a", "b")], 1),
+            ("one open pair keeps it live", [_ack("a", "b", "c")], 0),
+            ("two history entries", [_ack("a", "b"), _ack("a", "b", file="x.py")], 2),
+            ("no entries", [], 0),
+        ]
+        for name, acks, expected in cases:
+            with self.subTest(name):
+                self.assertEqual(_report(done, *acks)[1], expected)
 
 
 class TestLandingHint(unittest.TestCase):

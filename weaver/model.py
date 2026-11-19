@@ -251,3 +251,54 @@ def overlaps(plan: Plan) -> tuple[Overlap, ...]:
                 side = a.id if a.id in landed else b.id if b.id in landed else ""
                 found.append(Overlap(file, a.id, b.id, reason, side, landed.get(side, "")))
     return tuple(found)
+
+
+def _track(node: Node) -> tuple[str, str]:
+    """A node with no group is its own group."""
+    return (node.group, "" if node.group else node.id)
+
+
+@dataclass(frozen=True)
+class StaleAcknowledgement:
+    """A4-2: node ``node`` of the ``entry``-th ``[[overlap]]`` (0-based) on ``file`` no longer
+    overlaps any other node the entry names, because the structure changed."""
+    file: str
+    node: str
+    why: str
+    entry: int
+
+    def describe(self) -> str:
+        return f"{self.file} — {self.node} {self.why}"
+
+
+def acknowledgement_report(plan: Plan) -> tuple[tuple[StaleAcknowledgement, ...], int]:
+    """A4-2: the stale nodes of every ``[[overlap]]`` entry, and how many entries are history.
+
+    For each pair an entry names: one lane or a dependency path → sequenced; both landed →
+    history (A4-1); otherwise the overlap is open. A node with no open or history pair left
+    is stale: the entry claims an overlap the plan no longer has. An entry with no open pair
+    but at least one history pair is history: true, but prunable.
+    """
+    memo: dict[str, frozenset[str]] = {}
+    landed = landings(plan)
+
+    def kind(x: Node, y: Node) -> str:
+        if _track(x) == _track(y) or x.id in _closure(plan, y.id, SEAMS, memo) \
+                or y.id in _closure(plan, x.id, SEAMS, memo):
+            return "sequenced"
+        return "history" if x.id in landed and y.id in landed else "open"
+
+    stale: list[StaleAcknowledgement] = []
+    history = 0
+    for index, ack in enumerate(plan.acknowledgements):
+        named = [plan.node(i) for i in ack.nodes]
+        kinds = {(x.id, y.id): kind(x, y) for x in named for y in named if x.id != y.id}
+        for x in named:
+            if all(k == "sequenced" for (a, _), k in kinds.items() if a == x.id):
+                stale.append(StaleAcknowledgement(
+                    ack.file, x.id, "shares a lane or a dependency with every other node named",
+                    index))
+        values = set(kinds.values())
+        if "open" not in values and "history" in values:
+            history += 1
+    return tuple(stale), history
